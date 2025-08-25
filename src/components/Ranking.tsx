@@ -1,0 +1,115 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
+
+interface Profile {
+  id: string;
+  username: string;
+  elo_rating: number;
+  is_supporter: boolean;
+  nickname_color: string | null;
+  badge_color: string | null;
+}
+
+const PatronBadge = ({ color, text }: { color: string | null, text: string }) => (
+    <span 
+        className="ml-2 px-2 py-0.5 text-xs font-semibold text-black rounded-full"
+        style={{ backgroundColor: color || '#FFD700' }}
+    >
+        {text}
+    </span>
+);
+
+const Ranking = () => {
+  const { t } = useTranslation();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [activeGames, setActiveGames] = useState<Map<string, string>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRankingData = async () => {
+      setLoading(true);
+      
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, elo_rating, is_supporter, nickname_color, badge_color')
+        .order('elo_rating', { ascending: false })
+        .limit(50);
+
+      if (profileError) {
+        console.error('Error fetching profiles:', profileError);
+      } else {
+        setProfiles(profileData as Profile[]);
+      }
+
+      const { data: gameData, error: gameError } = await supabase
+        .from('active_games')
+        .select('*');
+
+      if (gameError) {
+          console.error('Error fetching active games:', gameError);
+      } else {
+          const gameMap = new Map();
+          gameData.forEach(game => {
+              gameMap.set(game.player1_id, game.room_id);
+              gameMap.set(game.player2_id, game.room_id);
+          });
+          setActiveGames(gameMap);
+      }
+
+      setLoading(false);
+    };
+
+    fetchRankingData();
+
+    const channel = supabase.channel('ranking-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchRankingData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'active_games' }, fetchRankingData)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return (
+    <div className="w-full max-w-md p-4 mt-8 bg-gray-800 rounded-lg shadow-xl border border-gray-700">
+      <h2 className="text-2xl font-bold text-center text-white mb-6">{t('Top50Players')}</h2>
+      {loading ? (
+        <p className="text-center text-gray-400">{t('LoadingRankings')}</p>
+      ) : (
+        <ol className="space-y-3">
+          {profiles.map((profile, index) => {
+            const activeRoomId = activeGames.get(profile.id);
+            return (
+              <li key={profile.id} className="flex justify-between items-center p-3 bg-gray-700 rounded-md">
+                <div className="flex items-center">
+                  <span className="text-lg font-bold text-yellow-400 w-8 text-center mr-3">{index + 1}</span>
+                  <Link href={`/profile/${profile.id}`} className="font-medium hover:underline" style={{ color: profile.nickname_color || '#FFFFFF' }}>
+                    {profile.username || 'Anonymous'}
+                  </Link>
+                  {profile.is_supporter && <PatronBadge color={profile.badge_color} text={t('Patron')} />}
+                </div>
+                <div className="flex items-center gap-4">
+                    {activeRoomId && (
+                        <Link href={`/spectate?roomId=${activeRoomId}`} className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors">
+                            {t('Spectate')}
+                        </Link>
+                    )}
+                    <span className="text-lg font-bold text-cyan-400">
+                        {profile.elo_rating} {t('ELO')}
+                    </span>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </div>
+  );
+};
+
+export default Ranking;

@@ -1,0 +1,63 @@
+'use client';
+
+import React from 'react';
+import PayPalButton from '@/components/PayPalButton';
+import { useTranslation } from 'react-i18next';
+import { supabase } from '@/lib/supabaseClient';
+
+interface SupporterBenefitsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isGuest: boolean;
+}
+
+const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsModalProps) => {
+  const { t } = useTranslation();
+  if (!isOpen) return null;
+
+  const benefits = [
+    { title: t('Benefit1Title'), description: t('Benefit1Desc') },
+    { title: t('Benefit2Title'), description: t('Benefit2Desc') },
+    { title: t('Benefit3Title'), description: t('Benefit3Desc') },
+    { title: t('Benefit4Title'), description: t('Benefit4Desc') },
+  ];
+
+  const handleLogin = () => {
+    // Signing out the anonymous user will trigger the Auth UI to show up.
+    supabase.auth.signOut();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+      <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
+        <h2 className="text-3xl font-bold text-white mb-4 text-center text-yellow-400">{t('SupporterPerks')}</h2>
+        <p className="text-center text-gray-300 mb-6">
+          {isGuest ? t('LoginToSupportMessage') : t('SupportMessage')}
+        </p>
+        
+        <div className="space-y-4">
+          {benefits.map((benefit, index) => (
+            <div key={index} className="p-3 bg-gray-700 rounded-lg">
+              <h3 className="font-semibold text-white">{benefit.title}</h3>
+              <p className="text-sm text-gray-400">{benefit.description}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 flex flex-col items-center gap-4">
+          {isGuest ? (
+            <button onClick={handleLogin} className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-500">
+              {t('LoginToSupport')}
+            </button>
+          ) : (
+            <PayPalButton onPaymentSuccess={onClose} />
+          )}
+          <button onClick={onClose} className="text-sm text-gray-400 hover:underline">{t('MaybeLater')}</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SupporterBenefitsModal;
