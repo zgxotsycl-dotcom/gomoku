@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useTranslation } from 'react-i18next';
 
-const AccountInfo = ({ onOpenSettings, onOpenBenefits }) => {
+const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () => void, onOpenBenefits: () => void }) => {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
 
