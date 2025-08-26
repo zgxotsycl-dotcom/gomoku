@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
@@ -12,8 +13,7 @@ interface SettingsModalProps {
 
 const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const { t } = useTranslation();
-  const { user } = useAuth(); // This will cause an error if useAuth is not imported
-  const [profile, setProfile] = useState(null);
+  const { user } = useAuth();
   const [nicknameColor, setNicknameColor] = useState('#FFFFFF');
   const [badgeColor, setBadgeColor] = useState('#FFD700');
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,6 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         .single();
       
       if (data) {
-        setProfile(data);
         setNicknameColor(data.nickname_color || '#FFFFFF');
         setBadgeColor(data.badge_color || '#FFD700');
       }
@@ -86,5 +85,4 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   );
 };
 
-import { useAuth } from '@/contexts/AuthContext';
 export default SettingsModal;
