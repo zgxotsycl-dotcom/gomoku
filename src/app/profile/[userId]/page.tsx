@@ -5,9 +5,19 @@ import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+// Define the type for our profile object
+interface Profile {
+  id: string;
+  username: string;
+  elo_rating: number;
+  is_supporter: boolean;
+  nickname_color: string | null;
+  badge_color: string | null;
+}
+
 const ProfilePage = ({ params }: { params: { userId: string } }) => {
   const { userId } = params;
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState<Profile | null>(null); // Explicitly type the state
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
