@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import toast from 'react-hot-toast';
-import type { CreateOrderData, CreateOrderActions, OnApproveData, OnApproveActions } from '@paypal/paypal-js';
 
+// We declare the paypal object on the window, as it is loaded from an external script.
 declare global {
     interface Window {
         paypal: any;
@@ -17,10 +17,11 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
     useEffect(() => {
         if (window.paypal) {
             window.paypal.Buttons({
-                createOrder: async (data: CreateOrderData, actions: CreateOrderActions) => {
+                // Using 'any' to bypass strict type checking for the PayPal SDK arguments
+                createOrder: async (data: any, actions: any) => {
                     try {
                         const { data: functionData, error } = await supabase.functions.invoke('create-paypal-order', {
-                            body: { locale: 'en' } // Assuming a default or passed-in locale
+                            body: { locale: 'en' } // Defaulting to 'en' for now
                         });
                         if (error) {
                             throw new Error(error.message);
@@ -32,11 +33,9 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
                         return ''; // Return empty string on failure
                     }
                 },
-                onApprove: async (data: OnApproveData, actions: OnApproveActions) => {
+                onApprove: async (data: any, actions: any) => {
                     toast.success('Payment approved! Please wait while we verify...');
                     onPaymentSuccess();
-                    // The webhook will handle the final fulfillment.
-                    // This capture is for completing the flow on PayPal's side.
                     return actions.order.capture();
                 },
                 onError: (err: any) => {
