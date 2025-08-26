@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { FaPaintBrush, FaStar } from 'react-icons/fa';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -60,14 +61,18 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         <h2 className="text-2xl font-bold text-white mb-4">{t('ColorSettings')}</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">{t('NicknameColor')}</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+              <FaPaintBrush /> {t('NicknameColor')}
+            </label>
             <div className="flex items-center gap-2">
               <input type="color" value={nicknameColor} onChange={(e) => setNicknameColor(e.target.value)} className="w-10 h-10 rounded border-gray-600"/>
               <input type="text" value={nicknameColor} onChange={(e) => setNicknameColor(e.target.value)} className="w-full px-2 py-1 rounded bg-gray-700 text-white border border-gray-600"/>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">{t('PatronBadgeColor')}</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+              <FaStar /> {t('PatronBadgeColor')}
+            </label>
             <div className="flex items-center gap-2">
                 <input type="color" value={badgeColor} onChange={(e) => setBadgeColor(e.target.value)} className="w-10 h-10 rounded border-gray-600"/>
                 <input type="text" value={badgeColor} onChange={(e) => setBadgeColor(e.target.value)} className="w-full px-2 py-1 rounded bg-gray-700 text-white border border-gray-600"/>

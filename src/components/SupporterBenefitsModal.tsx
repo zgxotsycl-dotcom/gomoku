@@ -4,6 +4,7 @@ import React from 'react';
 import PayPalButton from '@/components/PayPalButton';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabaseClient';
+import { FaStar, FaPalette, FaHistory, FaBrain } from 'react-icons/fa';
 
 interface SupporterBenefitsModalProps {
   isOpen: boolean;
@@ -16,14 +17,13 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
   if (!isOpen) return null;
 
   const benefits = [
-    { title: t('Benefit1Title'), description: t('Benefit1Desc') },
-    { title: t('Benefit2Title'), description: t('Benefit2Desc') },
-    { title: t('Benefit3Title'), description: t('Benefit3Desc') },
-    { title: t('Benefit4Title'), description: t('Benefit4Desc') },
+    { icon: <FaStar className="text-yellow-400" />, title: t('Benefit1Title'), description: t('Benefit1Desc') },
+    { icon: <FaPalette className="text-cyan-400" />, title: t('Benefit2Title'), description: t('Benefit2Desc') },
+    { icon: <FaHistory className="text-indigo-400" />, title: t('Benefit3Title'), description: t('Benefit3Desc') },
+    { icon: <FaBrain className="text-green-400" />, title: t('Benefit4Title'), description: t('Benefit4Desc') },
   ];
 
   const handleLogin = () => {
-    // Signing out the anonymous user will trigger the Auth UI to show up.
     supabase.auth.signOut();
     onClose();
   };
@@ -38,9 +38,12 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
         
         <div className="space-y-4">
           {benefits.map((benefit, index) => (
-            <div key={index} className="p-3 bg-gray-700 rounded-lg">
-              <h3 className="font-semibold text-white">{benefit.title}</h3>
-              <p className="text-sm text-gray-400">{benefit.description}</p>
+            <div key={index} className="p-3 bg-gray-700 rounded-lg flex items-center gap-4">
+              <div className="text-2xl">{benefit.icon}</div>
+              <div>
+                <h3 className="font-semibold text-white">{benefit.title}</h3>
+                <p className="text-sm text-gray-400">{benefit.description}</p>
+              </div>
             </div>
           ))}
         </div>

@@ -6,11 +6,10 @@ body {
   @apply bg-gray-900;
 }
 
+/* A subtle, dark, textured background */
 .main-background {
-    background-color: #111827; /* bg-gray-900 */
-    opacity: 1;
-    background-image: radial-gradient(#4b5563 /* bg-gray-600 */, #111827 /* bg-gray-900 */ 2px, transparent 2px),
-                      radial-gradient(#4b5563 /* bg-gray-600 */, #111827 /* bg-gray-900 */ 2px, transparent 2px);
-    background-size: 32px 32px;
-    background-position: 0 0, 16px 16px;
+    background-color: #1a1a1a; /* A very dark gray */
+    background-image: linear-gradient(0deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 2rem 2rem;
 }
