@@ -12,7 +12,8 @@ export default function LanguageSwitcher() {
     setIsOpen(false);
   };
 
-  const locales = {
+  // Add an index signature to the locales object type
+  const locales: { [key: string]: string } = {
     en: 'English',
     ko: '한국어',
     ja: '日本語',
