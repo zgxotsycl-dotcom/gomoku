@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabaseClient';
@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const fetchSessionAndProfile = async () => {
+      setLoading(true);
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
         console.error("Error getting session:", error);
@@ -46,14 +47,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .single();
         setProfile(profileData as Profile);
       } else {
-        // If no session, sign in as an anonymous user
         const { data: anonSession, error: anonError } = await supabase.auth.signInAnonymously();
         if (anonError) {
             console.error("Error signing in anonymously:", anonError);
+            setLoading(false); // <-- This was the missing line
         } else if (anonSession.session) {
             setSession(anonSession.session);
             setUser(anonSession.session.user);
-            // The trigger will create a profile, we can fetch it here too if needed
+            // The trigger will create a profile, which will be picked up by the listener.
         }
       }
       setLoading(false);
@@ -65,6 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Fetch profile on auth change
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
@@ -72,7 +74,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .single();
         setProfile(profileData as Profile);
       } else {
+        // If user logs out, clear profile and try to sign in anonymously again
         setProfile(null);
+        const { error: anonError } = await supabase.auth.signInAnonymously();
+        if (anonError) console.error("Error re-signing in anonymously after logout:", anonError);
       }
     });
 
@@ -87,7 +92,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     profile,
   };
 
-  // Do not render children until loading is complete
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 };
 
