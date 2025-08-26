@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import toast from 'react-hot-toast';
+import type { CreateOrderData, CreateOrderActions, OnApproveData, OnApproveActions } from '@paypal/paypal-js';
 
 declare global {
     interface Window {
@@ -12,15 +13,14 @@ declare global {
 
 const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) => {
     const paypalRef = useRef<HTMLDivElement>(null);
-    const locale = 'en'; // Hardcode to english for now
 
     useEffect(() => {
         if (window.paypal) {
             window.paypal.Buttons({
-                createOrder: async (data, actions) => {
+                createOrder: async (data: CreateOrderData, actions: CreateOrderActions) => {
                     try {
                         const { data: functionData, error } = await supabase.functions.invoke('create-paypal-order', {
-                            body: { locale }
+                            body: { locale: 'en' } // Assuming a default or passed-in locale
                         });
                         if (error) {
                             throw new Error(error.message);
@@ -29,15 +29,17 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
                     } catch (err) {
                         toast.error('Could not initiate PayPal payment.');
                         console.error(err);
-                        return null;
+                        return ''; // Return empty string on failure
                     }
                 },
-                onApprove: async (data, actions) => {
+                onApprove: async (data: OnApproveData, actions: OnApproveActions) => {
                     toast.success('Payment approved! Please wait while we verify...');
                     onPaymentSuccess();
+                    // The webhook will handle the final fulfillment.
+                    // This capture is for completing the flow on PayPal's side.
                     return actions.order.capture();
                 },
-                onError: (err) => {
+                onError: (err: any) => {
                     toast.error('An error occurred with the PayPal payment.');
                     console.error('PayPal Error:', err);
                 },
@@ -45,7 +47,7 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
         } else {
             console.error("PayPal SDK not loaded.");
         }
-    }, [locale, onPaymentSuccess]);
+    }, [onPaymentSuccess]);
 
     return <div ref={paypalRef}></div>;
 };
