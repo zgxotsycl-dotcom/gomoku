@@ -15,10 +15,18 @@ interface Profile {
   badge_color: string | null;
 }
 
+// Define the type for our stats object
+interface Stats {
+    total_games: number;
+    total_wins: number;
+    total_losses: number;
+    win_rate: number;
+}
+
 const ProfilePage = ({ params }: { params: { userId: string } }) => {
   const { userId } = params;
-  const [profile, setProfile] = useState<Profile | null>(null); // Explicitly type the state
-  const [stats, setStats] = useState(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null); // Explicitly type the state
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
