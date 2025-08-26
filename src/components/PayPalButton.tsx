@@ -10,7 +10,7 @@ declare global {
     }
 }
 
-const PayPalButton = ({ onPaymentSuccess }) => {
+const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) => {
     const paypalRef = useRef<HTMLDivElement>(null);
     const locale = 'en'; // Hardcode to english for now
 
