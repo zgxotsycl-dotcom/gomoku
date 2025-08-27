@@ -129,9 +129,9 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
   }, [isSpectator, gameMode, history, userProfile, opponentProfile, playerRole, t]);
 
   useEffect(() => { if (winner && gameState !== 'replay') { handleGameEnd(winner); } }, [winner, gameState, handleGameEnd]);
-  useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js'); aiWorkerRef.current.onmessage = (e) => { const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col, true); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
+  useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js'); aiWorkerRef.current.onmessage = (e) => { console.log('Board.tsx: Message received from AI worker:', e.data); const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col, true); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
   useEffect(() => { const fetchAiKnowledge = async () => { const { data, error } = await supabase.from('ai_knowledge').select('*'); if (error) console.error('Error fetching AI knowledge:', error); else { const knowledgeMap = new Map(data.map(item => [item.pattern_hash, { wins: item.wins, losses: item.losses }])); setAiKnowledge(knowledgeMap); } }; fetchAiKnowledge(); }, []);
-  useEffect(() => { if (gameMode === 'pva' && currentPlayer === 'white' && !winner) { aiWorkerRef.current?.postMessage({ board, player: 'white', knowledge: aiKnowledge }); } }, [currentPlayer, gameMode, winner, board, aiKnowledge]);
+  useEffect(() => { if (gameMode === 'pva' && currentPlayer === 'white' && !winner) { console.log('Board.tsx: Sending message to AI worker.'); aiWorkerRef.current?.postMessage({ board, player: 'white', knowledge: aiKnowledge }); } }, [currentPlayer, gameMode, winner, board, aiKnowledge]);
   useEffect(() => {
     if (gameMode !== 'pvo' && !spectateRoomId) return;
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';

@@ -1,8 +1,15 @@
 self.onmessage = (e) => {
-    const { board, player, knowledge } = e.data;
-    // The entire knowledge base is passed from the main thread.
-    const bestMove = findBestMove(board, player, knowledge);
-    self.postMessage(bestMove);
+    console.log('AI Worker: Message received from main thread.');
+    try {
+        const { board, player, knowledge } = e.data;
+        console.log('AI Worker: Finding best move for player:', player);
+        const bestMove = findBestMove(board, player, knowledge);
+        console.log('AI Worker: Best move found:', bestMove);
+        self.postMessage(bestMove);
+    } catch (error) {
+        console.error('AI Worker: An error occurred:', error);
+        self.postMessage({ row: -1, col: -1, error: error.message });
+    }
 };
 
 // --- AI Logic ---
