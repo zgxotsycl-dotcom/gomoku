@@ -140,7 +140,7 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
     socket.on('connect', () => { if (user) socket.emit('authenticate', user.id); if (spectateRoomId) socket.emit('join-private-room', spectateRoomId, userProfile); });
     socket.on('assign-role', (role) => setPlayerRole(role));
     socket.on('game-start', ({ roomId }) => { setRoom(roomId); setGameState('playing'); toast.success(t('GameStarted')); if (userProfile) socket.emit('share-profile', { room: roomId, profile: userProfile }); });
-    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast.info(t('NowSpectating')); });
+    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast.success(t('NowSpectating')); });
     socket.on('opponent-profile', (profile) => setOpponentProfile(profile));
     socket.on('game-state-update', ({ move, newPlayer }) => { setBoard(prevBoard => { const newBoard = prevBoard.map(r => [...r]); newBoard[move.row][move.col] = currentPlayer; return newBoard; }); setCurrentPlayer(newPlayer); });
     socket.on('game-over-update', ({ winner: winnerName }) => { setWinner(winnerName); setGameState('post-game'); });
