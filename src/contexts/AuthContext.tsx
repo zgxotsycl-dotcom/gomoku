@@ -17,6 +17,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,45 +29,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSessionAndProfile = async () => {
-      setLoading(true);
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("Error getting session:", error);
-        setLoading(false);
-        return;
-      }
-
-      if (session) {
-        setSession(session);
-        setUser(session.user);
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(profileData as Profile);
-      } else {
-        const { data: anonSession, error: anonError } = await supabase.auth.signInAnonymously();
-        if (anonError) {
-            console.error("Error signing in anonymously:", anonError);
-            setLoading(false); // <-- This was the missing line
-        } else if (anonSession.session) {
-            setSession(anonSession.session);
-            setUser(anonSession.session.user);
-            // The trigger will create a profile, which will be picked up by the listener.
-        }
-      }
-      setLoading(false);
-    };
-
-    fetchSessionAndProfile();
-
+    setLoading(true);
+    
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+
       if (session?.user) {
-        // Fetch profile on auth change
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
@@ -74,14 +43,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .single();
         setProfile(profileData as Profile);
       } else {
-        // If user logs out, clear profile and try to sign in anonymously again
         setProfile(null);
-        const { error: anonError } = await supabase.auth.signInAnonymously();
-        if (anonError) console.error("Error re-signing in anonymously after logout:", anonError);
       }
+      
+      setLoading(false);
     });
 
+    // Failsafe: If onAuthStateChange doesn't fire, stop loading after a timeout.
+    const timer = setTimeout(() => {
+        setLoading(false);
+    }, 3000);
+
     return () => {
+      clearTimeout(timer);
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -90,9 +64,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     session,
     user,
     profile,
+    loading,
   };
 
-  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

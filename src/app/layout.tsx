@@ -8,10 +8,13 @@ import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Gomoku Game',
-  description: 'Play Gomoku online with friends or a powerful AI.',
-}
+  description: 'Play Gomoku online with friends or AI',
+  icons: {
+    icon: '/icocon.png',
+  },
+};
 
 export default function RootLayout({
   children,

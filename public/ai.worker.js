@@ -1,3 +1,25 @@
+const BOARD_SIZE = 19;
+
+// Copied from Board.tsx and types removed for JS compatibility
+const checkWin = (board, player, row, col) => {
+  const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
+  for (const dir of directions) {
+    let count = 1;
+    for (let i = 1; i < 5; i++) {
+      const newRow = row + i * dir.y; const newCol = col + i * dir.x;
+      if (newRow < 0 || newRow >= BOARD_SIZE || newCol < 0 || newCol >= BOARD_SIZE || board[newRow][newCol] !== player) break;
+      count++;
+    }
+    for (let i = 1; i < 5; i++) {
+      const newRow = row - i * dir.y; const newCol = col - i * dir.x;
+      if (newRow < 0 || newRow >= BOARD_SIZE || newCol < 0 || newCol >= BOARD_SIZE || board[newRow][newCol] !== player) break;
+      count++;
+    }
+    if (count >= 5) return true;
+  }
+  return false;
+};
+
 self.onmessage = (e) => {
     console.log('AI Worker: Message received from main thread.');
     try {
@@ -13,8 +35,6 @@ self.onmessage = (e) => {
 };
 
 // --- AI Logic ---
-
-const BOARD_SIZE = 19;
 
 // Simple hash function for a 5x5 board pattern
 const hashPattern = (pattern) => {
@@ -55,12 +75,11 @@ function getPossibleMoves(board) {
 
 // --- START: New Evaluation Logic ---
 
-// The original heuristic scores, used as a fallback
 const HEURISTIC_SCORE = {
     FIVE: 100000,
     OPEN_FOUR: 10000,
     CLOSED_FOUR: 1000,
-    OPEN_THREE: 100,
+    OPEN_THREE: 500,
     CLOSED_THREE: 10,
     OPEN_TWO: 5,
     CLOSED_TWO: 1,
@@ -69,15 +88,23 @@ const HEURISTIC_SCORE = {
 function evaluateLine(line, player) {
     const opponent = player === 'black' ? 'white' : 'black';
     let score = 0;
-    let playerCount = line.filter(cell => cell === player).length;
-    let emptyCount = line.filter(cell => cell === null).length;
+    
+    // Offensive scores
+    const playerCount = line.filter(cell => cell === player).length;
+    const emptyCount = line.filter(cell => cell === null).length;
     if (playerCount === 5) return HEURISTIC_SCORE.FIVE;
     if (playerCount === 4 && emptyCount === 1) score += HEURISTIC_SCORE.OPEN_FOUR;
     if (playerCount === 3 && emptyCount === 2) score += HEURISTIC_SCORE.OPEN_THREE;
-    let opponentCount = line.filter(cell => cell === opponent).length;
+    if (playerCount === 2 && emptyCount === 3) score += HEURISTIC_SCORE.OPEN_TWO;
+
+    // Defensive scores
+    const opponentCount = line.filter(cell => cell === opponent).length;
     if (opponentCount === 5) return -HEURISTIC_SCORE.FIVE;
-    if (opponentCount === 4 && emptyCount === 1) score -= HEURISTIC_SCORE.OPEN_FOUR;
-    if (opponentCount === 3 && emptyCount === 2) score -= HEURISTIC_SCORE.OPEN_THREE;
+    // Make blocking more valuable than attacking
+    if (opponentCount === 4 && emptyCount === 1) score -= HEURISTIC_SCORE.OPEN_FOUR * 1.5;
+    if (opponentCount === 3 && emptyCount === 2) score -= HEURISTIC_SCORE.OPEN_THREE * 1.5;
+    if (opponentCount === 2 && emptyCount === 3) score -= HEURISTIC_SCORE.OPEN_TWO * 1.5;
+
     return score;
 }
 
@@ -164,15 +191,33 @@ function minimax(board, depth, alpha, beta, maximizingPlayer, aiPlayer, knowledg
 }
 
 function findBestMove(board, player, knowledge) {
-    let bestVal = -Infinity;
-    let bestMove = [-1, -1];
+    const opponent = player === 'black' ? 'white' : 'black';
     const possibleMoves = getPossibleMoves(board);
 
     if (possibleMoves.length === 0) return [-1, -1];
-    if (possibleMoves.length === 1) return possibleMoves[0];
 
-    // Use a shallower depth for real-time play, can be adjusted
-    const searchDepth = 3;
+    // --- Step 1: Check for immediate win ---
+    for (const [r, c] of possibleMoves) {
+        const newBoard = board.map(row => [...row]);
+        newBoard[r][c] = player;
+        if (checkWin(newBoard, player, r, c)) {
+            return [r, c];
+        }
+    }
+
+    // --- Step 2: Check for immediate block ---
+    for (const [r, c] of possibleMoves) {
+        const newBoard = board.map(row => [...row]);
+        newBoard[r][c] = opponent;
+        if (checkWin(newBoard, opponent, r, c)) {
+            return [r, c];
+        }
+    }
+
+    // --- Step 3: If no immediate win/loss, use minimax ---
+    let bestVal = -Infinity;
+    let bestMove = possibleMoves[0] || [-1, -1];
+    const searchDepth = 2;
 
     for (const [r, c] of possibleMoves) {
         const newBoard = board.map(row => [...row]);

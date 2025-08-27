@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -13,18 +13,48 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
+  path: "/socket.io/",
   cors: {
     origin: "http://localhost:3000",
     methods: ["GET", "POST"]
   }
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 const rooms = {}; // In-memory store for room state
 const publicMatchmakingQueue = [];
+const TURN_DURATION = 30000; // 30 seconds
 
 // --- Helper Functions ---
+const startTurnTimer = (roomId) => {
+  const room = rooms[roomId];
+  if (!room) return;
+
+  if (room.turnTimer) {
+    clearTimeout(room.turnTimer);
+  }
+
+  room.turnEndsAt = Date.now() + TURN_DURATION;
+  broadcastRoomState(roomId); // Broadcast state with new timer info
+
+  room.turnTimer = setTimeout(async () => {
+    if (room.gameState !== 'playing') return;
+
+    console.log(`Turn timer expired for room ${roomId}. Player ${room.currentPlayer} forfeits.`);
+    const winnerRole = room.currentPlayer === 'black' ? 'white' : 'black';
+    
+    room.gameState = 'post-game';
+    io.to(roomId).emit('game-over-update', { winner: winnerRole, reason: 'timeout' });
+    console.log(`Game over in room ${roomId}. Winner by timeout: ${winnerRole}`);
+
+    if (!room.isPrivate) {
+      const { error } = await supabase.from('active_games').delete().eq('room_id', roomId);
+      if (error) console.error('Error deleting active game on timeout:', error);
+    }
+  }, TURN_DURATION);
+};
+
 const broadcastRoomState = (roomId) => {
   if (!rooms[roomId]) return;
   const room = rooms[roomId];
@@ -32,6 +62,8 @@ const broadcastRoomState = (roomId) => {
     gameState: room.gameState,
     players: room.players,
     spectatorCount: room.spectators.size,
+    currentPlayer: room.currentPlayer,
+    turnEndsAt: room.turnEndsAt,
   };
   io.to(roomId).emit('room-state-update', state);
 };
@@ -47,6 +79,12 @@ io.on('connection', (socket) => {
 
   // --- Public Matchmaking ---
   socket.on('join-public-queue', (userProfile) => {
+    // Prevent user from joining queue multiple times
+    if (publicMatchmakingQueue.some(p => p.profile.id === userProfile.id)) {
+      console.log(`User ${userProfile.username} (${userProfile.id}) is already in the queue.`);
+      return;
+    }
+
     console.log(`User ${userProfile.username} (${socket.userId}) joined the public queue.`);
     publicMatchmakingQueue.push({ socketId: socket.id, profile: userProfile });
 
@@ -62,6 +100,9 @@ io.on('connection', (socket) => {
         },
         spectators: new Set(),
         gameState: 'playing',
+        currentPlayer: 'black',
+        turnTimer: null,
+        turnEndsAt: null,
         rematchVotes: new Set(),
         isPrivate: false,
       };
@@ -78,6 +119,7 @@ io.on('connection', (socket) => {
 
         io.to(roomId).emit('game-start', { roomId, players: rooms[roomId].players });
         console.log(`Public game starting for ${player1.profile.username} and ${player2.profile.username} in room ${roomId}`);
+        startTurnTimer(roomId);
         
         supabase.from('active_games').insert({
           room_id: roomId,
@@ -97,6 +139,9 @@ io.on('connection', (socket) => {
         players: { [socket.id]: { role: 'black', ...userProfile } },
         spectators: new Set(),
         gameState: 'waiting',
+        currentPlayer: 'black',
+        turnTimer: null,
+        turnEndsAt: null,
         rematchVotes: new Set(),
         isPrivate: true,
     };
@@ -126,19 +171,28 @@ io.on('connection', (socket) => {
       console.log(`User ${socket.userId} joined room ${roomId} as white`);
       socket.emit('assign-role', 'white');
       io.to(roomId).emit('game-start', { roomId, players: room.players });
-      broadcastRoomState(roomId);
+      startTurnTimer(roomId);
     }
   });
 
   // --- In-Game and Post-Game Logic ---
   socket.on('player-move', (data) => {
-    io.to(data.room).emit('game-state-update', { move: data.move, newPlayer: data.newPlayer });
+    const room = rooms[data.room];
+    if (!room || !room.players[socket.id] || room.players[socket.id].role !== room.currentPlayer) {
+        return; // Ignore move if it's not the player's turn, or player doesn't exist
+    }
+
+    const newPlayer = room.currentPlayer === 'black' ? 'white' : 'black';
+    room.currentPlayer = newPlayer;
+
+    io.to(data.room).emit('game-state-update', { move: data.move, newPlayer: newPlayer });
+    
+    startTurnTimer(data.room);
   });
 
   socket.on('send-emoticon', (data) => {
-    // Relay emoticon to everyone in the room including the sender
     io.to(data.room).emit('new-emoticon', { 
-        fromId: socket.userId, // Use the authenticated user ID
+        fromId: socket.userId,
         emoticon: data.emoticon 
     });
   });
@@ -146,6 +200,11 @@ io.on('connection', (socket) => {
   socket.on('game-over', async (data) => {
     const room = rooms[data.roomId];
     if (!room) return;
+
+    if (room.turnTimer) {
+        clearTimeout(room.turnTimer);
+        room.turnTimer = null;
+    }
 
     room.gameState = 'post-game';
     io.to(data.roomId).emit('game-over-update', { winner: data.winner });
@@ -165,8 +224,10 @@ io.on('connection', (socket) => {
     if (room.rematchVotes.size === Object.keys(room.players).length) {
       console.log(`Rematch starting in room ${roomId}`);
       room.gameState = 'playing';
+      room.currentPlayer = 'black';
       room.rematchVotes.clear();
       io.to(roomId).emit('new-game-starting');
+      startTurnTimer(roomId);
     }
   });
 
@@ -176,12 +237,23 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', async () => {
     console.log(`User disconnected: ${socket.id}`);
+
+    // Remove from matchmaking queue if present
+    const queueIndex = publicMatchmakingQueue.findIndex(p => p.socketId === socket.id);
+    if (queueIndex !== -1) {
+      publicMatchmakingQueue.splice(queueIndex, 1);
+      console.log(`User ${socket.id} removed from public queue.`);
+    }
+
     let disconnectedRoomId = null;
 
     for (const roomId in rooms) {
       const room = rooms[roomId];
       if (room.players[socket.id]) {
         disconnectedRoomId = roomId;
+        if (room.turnTimer) {
+            clearTimeout(room.turnTimer);
+        }
         delete room.players[socket.id];
         io.to(roomId).emit('opponent-disconnected');
         break;
@@ -194,9 +266,9 @@ io.on('connection', (socket) => {
 
     if (disconnectedRoomId) {
         const room = rooms[disconnectedRoomId];
-        if (Object.keys(room.players).length === 0) {
+        if (room && Object.keys(room.players).length === 0) {
             delete rooms[disconnectedRoomId];
-        } else {
+        } else if (room) {
             if (!room.isPrivate) {
                 const { error } = await supabase.from('active_games').delete().eq('room_id', disconnectedRoomId);
                 if (error) console.error('Error deleting active game on disconnect:', error);

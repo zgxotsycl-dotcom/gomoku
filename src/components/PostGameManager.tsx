@@ -13,14 +13,15 @@ interface PostGameManagerProps {
   gameMode: GameMode;
   room: string;
   socketRef: React.RefObject<Socket | null>;
+  onLeave: () => void;
 }
 
-const PostGameManager: React.FC<PostGameManagerProps> = ({ isPlayer, isSpectator, resetGame, gameMode, room, socketRef }) => {
+const PostGameManager: React.FC<PostGameManagerProps> = ({ isPlayer, isSpectator, resetGame, gameMode, room, socketRef, onLeave }) => {
     const { t } = useTranslation();
     const [showSpectatorPopup, setShowSpectatorPopup] = useState(true);
 
     const handleRematch = () => { toast.success(t('VotedForRematch')); socketRef.current?.emit('rematch-vote', room); };
-    const handleLeave = () => resetGame(gameMode);
+    const handleLeave = () => onLeave();
     const handleJoin = () => { toast.success(t('RequestingToJoin')); socketRef.current?.emit('request-to-join', room); };
 
     if (isPlayer) {

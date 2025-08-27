@@ -67,5 +67,7 @@
   "Last": "Last",
   "WhatIf": "What If?",
   "LoginToSupportMessage": "Login or Sign Up to become a supporter and unlock these features!",
-  "LoginToSupport": "Login to Support"
+  "LoginToSupport": "Login to Support",
+  "LoginToPlayOnline": "Please log in to play online.",
+  "RoomCreated": "Private room created! Code: {roomId}"
 }

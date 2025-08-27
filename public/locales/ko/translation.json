@@ -67,5 +67,7 @@
   "Last": "마지막으로",
   "WhatIf": "What If?",
   "LoginToSupportMessage": "로그인 또는 회원가입하여 후원자가 되고 특별한 혜택을 잠금 해제하세요!",
-  "LoginToSupport": "로그인하여 후원하기"
+  "LoginToSupport": "로그인하여 후원하기",
+  "LoginToPlayOnline": "온라인으로 플레이하려면 로그인하세요.",
+  "RoomCreated": "비밀방이 생성되었습니다! 코드: {roomId}"
 }

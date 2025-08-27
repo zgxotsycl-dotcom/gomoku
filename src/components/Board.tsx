@@ -7,13 +7,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import io, { Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
-import PostGameManager from './PostGameManager';
 import OnlineMultiplayerMenu from './OnlineMultiplayerMenu';
 import ReplayControls from './ReplayControls';
 import PlayerDisplay from './PlayerDisplay';
 import EmoticonPicker from './EmoticonPicker';
+import RoomCodeModal from './RoomCodeModal';
 
-// Type definitions are now exported so other components can use them
+// Type definitions
 export type GameMode = 'pvp' | 'pva' | 'pvo';
 export type GameState = 'waiting' | 'playing' | 'post-game' | 'replay';
 export type Profile = { id: string; username: string; elo_rating: number; is_supporter: boolean; nickname_color: string | null; badge_color: string | null; };
@@ -22,6 +22,8 @@ export type EmoticonMessage = { id: number; fromId: string; emoticon: string };
 
 interface BoardProps {
   initialGameMode: GameMode;
+  onExit: () => void;
+  onGameStateChange?: (state: GameState) => void;
   spectateRoomId?: string | null;
   replayGame?: Game | null;
 }
@@ -29,6 +31,7 @@ interface BoardProps {
 const BOARD_SIZE = 19;
 const K_FACTOR = 32;
 
+// --- Helper Functions ---
 const checkWin = (board: (Player | null)[][], player: Player, row: number, col: number): boolean => {
   const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
   for (const dir of directions) {
@@ -53,13 +56,42 @@ const calculateElo = (playerRating: number, opponentRating: number, score: 1 | 0
   return Math.round(playerRating + K_FACTOR * (score - expectedScore));
 };
 
-const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: BoardProps) => {
+// --- Sub-components ---
+const GameOverModal = ({ winner, gameMode, onPlayAgain, onOk, onRematch }: { winner: Player | null, gameMode: GameMode, onPlayAgain: () => void, onOk: () => void, onRematch: () => void }) => {
+  const { t } = useTranslation();
+  if (!winner) return null;
+
+  return (
+    <div className="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center z-10">
+      <div className="bg-gray-700 p-8 rounded-lg shadow-xl text-center transform transition-all animate-fade-in-up">
+        <h2 className="text-4xl font-bold text-yellow-400 mb-4">
+          {t('Board.winnerMessage', '{{winner}} Wins!', { winner: winner.charAt(0).toUpperCase() + winner.slice(1) })}
+        </h2>
+        <div className="flex gap-6 justify-center mt-6">
+          {gameMode === 'pvo' ? (
+            <>
+              <button onClick={onRematch} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-lg font-semibold">{t('Board.playAgain', 'Play Again')}</button>
+              <button onClick={onOk} className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-lg font-semibold">{t('Board.ok', 'OK')}</button>
+            </>
+          ) : (
+            <>
+              <button onClick={onPlayAgain} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-lg font-semibold">{t('Board.playAgain', 'Play Again')}</button>
+              <button onClick={onOk} className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-lg font-semibold">{t('Board.ok', 'OK')}</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Board = ({ initialGameMode, onExit, onGameStateChange, spectateRoomId = null, replayGame = null }: BoardProps) => {
   const { t } = useTranslation();
   const [board, setBoard] = useState<Array<Array<Player | null>>>(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)));
   const [currentPlayer, setCurrentPlayer] = useState<Player>('black');
   const [winner, setWinner] = useState<Player | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>(spectateRoomId ? 'pvo' : (replayGame ? replayGame.game_type : initialGameMode));
-  const [gameState, setGameState] = useState<GameState>(replayGame ? 'replay' : 'waiting');
+  const [gameState, setGameState] = useState<GameState>(replayGame ? 'replay' : (initialGameMode === 'pva' ? 'waiting' : 'playing'));
   const [room, setRoom] = useState(spectateRoomId || '');
   const [playerRole, setPlayerRole] = useState<Player | null>(null);
   const [isSpectator, setIsSpectator] = useState(!!spectateRoomId);
@@ -71,10 +103,23 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
   const [isReplaying, setIsReplaying] = useState(false);
   const [whatIfState, setWhatIfState] = useState<{board: (Player | null)[][], player: Player} | null>(null);
   const [aiKnowledge, setAiKnowledge] = useState<Map<string, { wins: number, losses: number }> | null>(null);
-  
+  const [aiPlayer, setAiPlayer] = useState<Player | null>(null);
+  const [pvaRoleSelected, setPvaRoleSelected] = useState(false);
+  const [aiMove, setAiMove] = useState<{row: number, col: number} | null>(null);
+  const [showRoomCodeModal, setShowRoomCodeModal] = useState(false);
+
   const socketRef = useRef<Socket | null>(null);
   const aiWorkerRef = useRef<Worker | null>(null);
   const replayIntervalRef = useRef<number | null>(null);
+
+  const setGameStateAndNotify = (state: GameState) => {
+    setGameState(state);
+    onGameStateChange?.(state);
+  };
+
+  useEffect(() => {
+    onGameStateChange?.(gameState);
+  }, []);
 
   const handleStonePlacement = useCallback((row: number, col: number, isAI: boolean = false) => {
     if (whatIfState) {
@@ -88,22 +133,61 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
     }
     if (board[row][col] || winner || isSpectator || gameState !== 'playing') return;
     if (gameMode === 'pvo' && currentPlayer !== playerRole) { toast.error(t('NotYourTurn')); return; }
+    if (gameMode === 'pva' && !isAI && currentPlayer === aiPlayer) return; // Prevent human from moving on AI's turn
+
     const newPlayer = currentPlayer === 'black' ? 'white' : 'black';
-    if (gameMode === 'pvo') socketRef.current?.emit('player-move', { room, move: { row, col }, newPlayer });
+    if (gameMode === 'pvo') socketRef.current?.emit('player-move', { room, move: { row, col } });
     const newBoard = board.map(r => [...r]);
     newBoard[row][col] = currentPlayer;
     setBoard(newBoard);
     setHistory(h => [...h, { player: currentPlayer, row, col }]);
     if (checkWin(newBoard, currentPlayer, row, col)) {
       setWinner(currentPlayer);
-      if (gameMode === 'pvo') socketRef.current?.emit('game-over', { roomId: room, winner: currentPlayer });
+      if (gameMode === 'pvo') {
+        socketRef.current?.emit('game-over', { roomId: room, winner: currentPlayer });
+        setGameStateAndNotify('post-game');
+      }
     } else {
       setCurrentPlayer(newPlayer);
     }
-  }, [board, currentPlayer, gameState, gameMode, history, isSpectator, playerRole, room, winner, whatIfState, t]);
+  }, [board, currentPlayer, gameState, gameMode, history, isSpectator, playerRole, room, winner, whatIfState, t, aiPlayer]);
 
   const handleGameEnd = useCallback(async (gameWinner: Player) => {
     if (isSpectator) return;
+
+    // AI LEARNING LOGIC
+    console.log('Starting knowledge update for completed game...');
+    const hashPattern = (pattern: (Player | null)[][]) => pattern.map(row => row.map(cell => cell ? cell[0] : '-').join('')).join('|');
+    const extractPlayerPatterns = (history: { player: Player, row: number, col: number }[], targetPlayer: Player, boardSize: number) => {
+        const patterns = new Set<string>();
+        const board: (Player | null)[][] = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+        for (const move of history) {
+            board[move.row][move.col] = move.player;
+            if (move.player === targetPlayer) {
+                for (let r = Math.max(0, move.row - 4); r <= move.row && r <= boardSize - 5; r++) {
+                    for (let c = Math.max(0, move.col - 4); c <= move.col && c <= boardSize - 5; c++) {
+                        const pattern: (Player | null)[][] = [];
+                        for (let i = 0; i < 5; i++) pattern.push(board[r + i].slice(c, c + 5));
+                        patterns.add(hashPattern(pattern));
+                    }
+                }
+            }
+        }
+        return Array.from(patterns);
+    };
+    const gameLoser = gameWinner === 'black' ? 'white' : 'black';
+    const winningPatterns = extractPlayerPatterns(history, gameWinner, BOARD_SIZE);
+    const losingPatterns = extractPlayerPatterns(history, gameLoser, BOARD_SIZE);
+    if (winningPatterns.length > 0 || losingPatterns.length > 0) {
+      console.log(`Extracted ${winningPatterns.length} winning and ${losingPatterns.length} losing patterns.`);
+      supabase.functions.invoke('update-game-knowledge', { body: { winningPatterns, losingPatterns } }).then(({ error }) => {
+        if (error) console.error('Error updating game knowledge:', error);
+        else console.log('Game knowledge update function invoked successfully.');
+      });
+    }
+
+    // GAME SAVING & ELO LOGIC
+    if (gameMode === 'pvp') return;
     let gameData: any = { game_type: gameMode, winner_player: gameWinner, moves: history };
     if (gameMode === 'pvo' && userProfile && opponentProfile) {
       gameData.player_black_id = playerRole === 'black' ? userProfile.id : opponentProfile.id;
@@ -113,7 +197,7 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
       gameData.player_white_id = null;
     }
     const { data: savedGame, error: gameSaveError } = await supabase.from('games').insert([gameData]).select().single();
-    if (gameSaveError || !savedGame) { toast.error(t('FailedToSaveGame')); return; }
+    if (gameSaveError || !savedGame) toast.error(t('FailedToSaveGame'));
     else { 
       toast.success(t('GameResultsSaved'));
       if (userProfile?.is_supporter) await supabase.rpc('add_replay_and_prune', { user_id_in: userProfile.id, game_id_in: savedGame.id });
@@ -126,82 +210,140 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
       toast.success(`${t('YourNewElo')}: ${myNewElo} (${myNewElo - userProfile.elo_rating >= 0 ? '+' : ''}${myNewElo - userProfile.elo_rating})`);
       await supabase.rpc('update_elo', { winner_id: didIWin ? userProfile.id : opponentProfile.id, loser_id: didIWin ? opponentProfile.id : userProfile.id, winner_new_elo: didIWin ? myNewElo : opponentNewElo, loser_new_elo: didIWin ? opponentNewElo : myNewElo });
     }
-  }, [isSpectator, gameMode, history, userProfile, opponentProfile, playerRole, t]);
+  }, [isSpectator, gameMode, history, userProfile, opponentProfile, playerRole, t, aiPlayer]);
 
   useEffect(() => { if (winner && gameState !== 'replay') { handleGameEnd(winner); } }, [winner, gameState, handleGameEnd]);
-  useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js'); aiWorkerRef.current.onmessage = (e) => { console.log('Board.tsx: Message received from AI worker:', e.data); const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col, true); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
+  
+  // AI Worker Setup
+  useEffect(() => { 
+    aiWorkerRef.current = new Worker('/ai.worker.js'); 
+    aiWorkerRef.current.onmessage = (e) => { 
+      console.log('Board.tsx: Message received from AI worker:', e.data);
+      if (e.data.error) { console.error('AI Worker Error:', e.data.error); return; }
+      const [row, col] = e.data;
+      if (row !== -1 && col !== -1) setAiMove({ row, col });
+    }; 
+    return () => aiWorkerRef.current?.terminate(); 
+  }, []);
+
+  // Effect to play AI move when `aiMove` state is set
+  useEffect(() => {
+    if (aiMove) {
+      handleStonePlacement(aiMove.row, aiMove.col, true);
+      setAiMove(null);
+    }
+  }, [aiMove, handleStonePlacement]);
+
   useEffect(() => { const fetchAiKnowledge = async () => { const { data, error } = await supabase.from('ai_knowledge').select('*'); if (error) console.error('Error fetching AI knowledge:', error); else { const knowledgeMap = new Map(data.map(item => [item.pattern_hash, { wins: item.wins, losses: item.losses }])); setAiKnowledge(knowledgeMap); } }; fetchAiKnowledge(); }, []);
-  useEffect(() => { if (gameMode === 'pva' && currentPlayer === 'white' && !winner) { console.log('Board.tsx: Sending message to AI worker.'); aiWorkerRef.current?.postMessage({ board, player: 'white', knowledge: aiKnowledge }); } }, [currentPlayer, gameMode, winner, board, aiKnowledge]);
+  
+  // Effect to trigger AI turn
+  useEffect(() => { 
+    if (gameMode === 'pva' && pvaRoleSelected && currentPlayer === aiPlayer && !winner) { 
+      console.log(`Board.tsx: Sending message to AI worker for player ${aiPlayer}.`); 
+      aiWorkerRef.current?.postMessage({ board, player: currentPlayer, knowledge: aiKnowledge }); 
+    } 
+  }, [currentPlayer, gameMode, winner, board, aiKnowledge, aiPlayer, pvaRoleSelected]);
+  
+  // Socket.io effect for online games
   useEffect(() => {
     if (gameMode !== 'pvo' && !spectateRoomId) return;
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, { path: "/socket.io/" });
     socketRef.current = socket;
     socket.on('connect', () => { if (user) socket.emit('authenticate', user.id); if (spectateRoomId) socket.emit('join-private-room', spectateRoomId, userProfile); });
     socket.on('assign-role', (role) => setPlayerRole(role));
-    socket.on('game-start', ({ roomId }) => { setRoom(roomId); setGameState('playing'); toast.success(t('GameStarted')); if (userProfile) socket.emit('share-profile', { room: roomId, profile: userProfile }); });
-    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast.success(t('NowSpectating')); });
+    socket.on('room-created', (newRoomId) => {
+      setRoom(newRoomId);
+      setShowRoomCodeModal(true);
+    });
+    socket.on('game-start', ({ roomId }) => { setRoom(roomId); setGameStateAndNotify('playing'); toast.success(t('GameStarted')); if (userProfile) socket.emit('share-profile', { room: roomId, profile: userProfile }); });
+    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameStateAndNotify('playing'); toast.success(t('NowSpectating')); });
     socket.on('opponent-profile', (profile) => setOpponentProfile(profile));
     socket.on('game-state-update', ({ move, newPlayer }) => { setBoard(prevBoard => { const newBoard = prevBoard.map(r => [...r]); newBoard[move.row][move.col] = currentPlayer; return newBoard; }); setCurrentPlayer(newPlayer); });
-    socket.on('game-over-update', ({ winner: winnerName }) => { setWinner(winnerName); setGameState('post-game'); });
+    socket.on('game-over-update', ({ winner: winnerName }) => { setWinner(winnerName); setGameStateAndNotify('post-game'); });
     socket.on('new-game-starting', () => { toast.success(t('RematchStarting')); internalReset(); });
     socket.on('room-full-or-invalid', () => toast.error(t('RoomFullOrInvalid')));
-    socket.on('opponent-disconnected', () => { toast.error(t('OpponentDisconnected')); resetGame(gameMode); });
+    socket.on('opponent-disconnected', () => { toast.error(t('OpponentDisconnected')); onExit(); });
     const handleNewEmoticon = (data: { fromId: string, emoticon: string }) => { const newEmoticon = { ...data, id: Date.now() }; setEmoticons(current => [...current, newEmoticon]); setTimeout(() => { setEmoticons(current => current.filter(e => e.id !== newEmoticon.id)); }, 4000); };
     socket.on('new-emoticon', handleNewEmoticon);
     return () => { socket.off('new-emoticon', handleNewEmoticon); socket.disconnect(); };
   }, [gameMode, user, userProfile, spectateRoomId, t]);
 
-  const internalReset = () => { setBoard(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null))); setCurrentPlayer('black'); setWinner(null); setHistory([]); setGameState('playing'); };
-  const resetGame = (mode: GameMode) => { internalReset(); setGameMode(mode); setRoom(spectateRoomId || ''); setPlayerRole(null); setOpponentProfile(null); setIsSpectator(!!spectateRoomId); };
-  const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => { if (winner || isSpectator || (gameState !== 'playing' && !whatIfState)) return; if (gameMode === 'pva' && currentPlayer === 'white') return; const rect = event.currentTarget.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const row = Math.round((y / rect.height) * (BOARD_SIZE - 1)); const col = Math.round((x / rect.width) * (BOARD_SIZE - 1)); if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) handleStonePlacement(row, col); };
+  const internalReset = () => { setBoard(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null))); setCurrentPlayer('black'); setWinner(null); setHistory([]); setPvaRoleSelected(false); setAiPlayer(null); setGameStateAndNotify('playing'); };
+  const resetGame = (mode: GameMode) => { internalReset(); setGameMode(mode); if (mode !== 'pva') { setGameStateAndNotify('playing'); } else { setGameStateAndNotify('waiting'); } setRoom(spectateRoomId || ''); setPlayerRole(null); setOpponentProfile(null); setIsSpectator(!!spectateRoomId); };
+  const handlePvaRoleSelect = (playerIsBlack: boolean) => { setAiPlayer(playerIsBlack ? 'white' : 'black'); setPvaRoleSelected(true); setGameStateAndNotify('playing'); };
+  const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => { if (winner || isSpectator || gameState !== 'playing' || (gameMode === 'pva' && currentPlayer === aiPlayer)) return; const rect = event.currentTarget.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const row = Math.round((y / rect.height) * (BOARD_SIZE - 1)); const col = Math.round((x / rect.width) * (BOARD_SIZE - 1)); if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) handleStonePlacement(row, col); };
   const handleSendEmoticon = (emoticon: string) => { socketRef.current?.emit('send-emoticon', { room, emoticon }); };
+  const handleRematch = () => { toast.success(t('VotedForRematch')); socketRef.current?.emit('rematch-vote', room); };
   const handleWhatIf = () => { if (replayGame?.game_type !== 'pva') { toast.error(t('WhatIfPvaOnly')); return; } setIsReplaying(false); const currentReplayBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)); for (let i = 0; i <= replayMoveIndex; i++) { currentReplayBoard[history[i].row][history[i].col] = history[i].player; } const nextPlayer = history[replayMoveIndex + 1]?.player || (history[replayMoveIndex].player === 'black' ? 'white' : 'black'); setWhatIfState({ board: currentReplayBoard, player: nextPlayer }); toast.success(t('WhatIfActivated')); };
   const exitWhatIf = () => setWhatIfState(null);
 
   const currentBoard = whatIfState ? whatIfState.board : board;
-  const p1Profile = playerRole === 'black' ? userProfile : opponentProfile;
-  const p2Profile = playerRole === 'white' ? userProfile : opponentProfile;
+  const p1Profile = gameMode === 'pvp'
+    ? { id: 'black', username: t('Board.player.black', 'Black'), elo_rating: 0, is_supporter: false, nickname_color: null, badge_color: null }
+    : gameMode === 'pva' ? (aiPlayer === 'white' ? userProfile : {id: 'ai', username: 'AI', elo_rating: 1200, is_supporter: true, nickname_color: null, badge_color: null}) : (playerRole === 'black' ? userProfile : opponentProfile);
+  const p2Profile = gameMode === 'pvp'
+    ? { id: 'white', username: t('Board.player.white', 'White'), elo_rating: 0, is_supporter: false, nickname_color: null, badge_color: null }
+    : gameMode === 'pva' ? (aiPlayer === 'white' ? {id: 'ai', username: 'AI', elo_rating: 1200, is_supporter: true, nickname_color: null, badge_color: null} : userProfile) : (playerRole === 'white' ? userProfile : opponentProfile);
   const p1LastEmoticon = emoticons.find(e => e.fromId === p1Profile?.id);
   const p2LastEmoticon = emoticons.find(e => e.fromId === p2Profile?.id);
 
+  const renderPvaRoleSelection = () => (
+    <div className="text-center">
+      <h2 className="text-3xl text-white mb-6">{t('WhoGoesFirst')}</h2>
+      <div className="flex gap-4">
+        <button onClick={() => handlePvaRoleSelect(true)} className="px-8 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors text-xl">{t('PlayerGoesFirst')}</button>
+        <button onClick={() => handlePvaRoleSelect(false)} className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-xl">{t('AIGoesFirst')}</button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col items-center">
-      {gameState !== 'replay' && (
-        <div className="mb-4 flex gap-2 p-1 bg-gray-800/50 rounded-full border border-gray-700">
-            <button onClick={() => resetGame('pvp')} className={`px-4 py-2 text-white rounded-full text-sm ${gameMode === 'pvp' ? 'bg-blue-600' : 'hover:bg-gray-700'}`}>{t('PvsPlayer')}</button>
-            <button onClick={() => resetGame('pva')} className={`px-4 py-2 text-white rounded-full text-sm ${gameMode === 'pva' ? 'bg-green-600' : 'hover:bg-gray-700'}`}>{t('PvsAI')}</button>
-            <button onClick={() => resetGame('pvo')} className={`px-4 py-2 text-white rounded-full text-sm ${gameMode === 'pvo' ? 'bg-purple-600' : 'hover:bg-gray-700'}`}>{t('PvsOnline')}</button>
-        </div>
-      )}
-      {gameMode === 'pvo' && !room && !spectateRoomId && <OnlineMultiplayerMenu setGameMode={setGameMode} socketRef={socketRef} userProfile={userProfile} />}
-      <div className="flex w-full max-w-4xl justify-around items-center mb-4">
-          <PlayerDisplay profile={p1Profile} lastEmoticon={p1LastEmoticon} />
-          <span className="text-2xl font-bold text-white">VS</span>
-          <PlayerDisplay profile={p2Profile} lastEmoticon={p2LastEmoticon} />
-      </div>
-      {(gameMode !== 'pvo' || room) && (
-        <div onClick={handleBoardClick} className={`bg-orange-200 p-2 shadow-lg relative rounded-md ${isSpectator || (gameMode === 'pva' && currentPlayer === 'white') || (gameState !== 'playing' && !whatIfState) ? 'cursor-not-allowed' : 'cursor-pointer'}`} style={{ width: '64vmin', height: '64vmin' }}>
-          <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: 'calc(100% / (BOARD_SIZE - 1) / 2)' }}>
-              {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`v-${i}`} className="absolute bg-black/50" style={{left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%'}}></div>)}
-              {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`h-${i}`} className="absolute bg-black/50" style={{top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%'}}></div>)}
+      {showRoomCodeModal && room && <RoomCodeModal roomId={room} onClose={() => setShowRoomCodeModal(false)} />}
+      {gameMode === 'pva' && !pvaRoleSelected && gameState !== 'replay' ? renderPvaRoleSelection() : (
+        <>
+          <div className="flex w-full max-w-4xl justify-around items-center mb-4">
+            <PlayerDisplay profile={p1Profile} lastEmoticon={p1LastEmoticon} />
+            <div className="flex flex-col items-center gap-4">
+              <span className="text-2xl font-bold text-white">VS</span>
+              {gameState === 'playing' && !isSpectator && !replayGame && gameMode === 'pvo' && (
+                  <EmoticonPicker onSelect={handleSendEmoticon} />
+              )}
+            </div>
+            <PlayerDisplay profile={p2Profile} lastEmoticon={p2LastEmoticon} />
           </div>
-          <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-            {currentBoard.map((row, r_idx) => row.map((cell, c_idx) => {
-              if (cell) {
-                const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.95)`;
-                return <div key={`${r_idx}-${c_idx}`} className={`absolute rounded-full shadow-md`} style={{ top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`, left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`, width: stoneSize, height: stoneSize, backgroundColor: cell, border: cell === 'black' ? '1px solid #202020' : '1px solid #e0e0e0' }}></div>;
-              }
-              return null;
-            }))}
-          </div>
-        </div>
+          {gameMode === 'pvo' && !room && !spectateRoomId && <OnlineMultiplayerMenu setGameMode={setGameMode} socketRef={socketRef} userProfile={userProfile} />}
+          {(gameMode !== 'pvo' || room) && (
+            <div onClick={handleBoardClick} className={`bg-orange-200 p-2 shadow-lg relative rounded-md ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing') ? 'cursor-not-allowed' : 'cursor-pointer'}`} style={{ width: '64vmin', height: '64vmin' }}>
+              <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: 'calc(100% / (BOARD_SIZE - 1) / 2)' }}>
+                  {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`v-${i}`} className="absolute bg-black/50" style={{left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%'}}></div>)}
+                  {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`h-${i}`} className="absolute bg-black/50" style={{top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%'}}></div>)}
+              </div>
+              <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                {currentBoard.map((row, r_idx) => row.map((cell, c_idx) => {
+                  if (cell) {
+                    const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.95)`;
+                    return <div key={`${r_idx}-${c_idx}`} className={`absolute rounded-full shadow-md`} style={{ top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`, left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`, width: stoneSize, height: stoneSize, backgroundColor: cell, border: cell === 'black' ? '1px solid #202020' : '1px solid #e0e0e0' }}></div>;
+                  }
+                  return null;
+                }))}
+              </div>
+              {(winner || (gameState === 'post-game' && gameMode === 'pvo')) && (
+                <GameOverModal 
+                  winner={winner}
+                  gameMode={gameMode}
+                  onPlayAgain={() => resetGame(gameMode)}
+                  onOk={onExit}
+                  onRematch={handleRematch}
+                />
+              )}
+            </div>
+          )}
+          {gameState === 'replay' && (<ReplayControls moveCount={history.length} currentMove={replayMoveIndex} setCurrentMove={setReplayMoveIndex} isPlaying={isReplaying} setIsPlaying={setIsReplaying} onWhatIf={replayGame?.game_type === 'pva' ? handleWhatIf : undefined}/>)}
+          {whatIfState && <button onClick={exitWhatIf} className="mt-2 px-4 py-2 bg-red-500 text-white rounded">{t('ExitWhatIf')}</button>}
+        </>
       )}
-      {gameState === 'playing' && !isSpectator && !replayGame && (<div className="mt-4"><EmoticonPicker onSelect={handleSendEmoticon} /></div>)}
-      {winner && gameState !== 'replay' && <div className="mt-4 text-2xl font-bold text-white">{t('WinnerMessage', { winner: winner.charAt(0).toUpperCase() + winner.slice(1) })}</div>}
-      {gameState === 'post-game' && <PostGameManager isPlayer={!isSpectator} isSpectator={isSpectator} resetGame={resetGame} gameMode={gameMode} room={room} socketRef={socketRef} />}
-      {gameState === 'replay' && (<ReplayControls moveCount={history.length} currentMove={replayMoveIndex} setCurrentMove={setReplayMoveIndex} isPlaying={isReplaying} setIsPlaying={setIsReplaying} onWhatIf={replayGame?.game_type === 'pva' ? handleWhatIf : undefined}/>)}
-      {whatIfState && <button onClick={exitWhatIf} className="mt-2 px-4 py-2 bg-red-500 text-white rounded">{t('ExitWhatIf')}</button>}
     </div>
   );
 };

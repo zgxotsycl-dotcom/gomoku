@@ -67,5 +67,7 @@
   "Last": "最後へ",
   "WhatIf": "What If?",
   "LoginToSupportMessage": "ログインまたは新規登録してサポーターになり、特別な機能のロックを解除しましょう！",
-  "LoginToSupport": "ログインして支援する"
+  "LoginToSupport": "ログインして支援する",
+  "LoginToPlayOnline": "オンラインでプレイするにはログインしてください。",
+  "RoomCreated": "プライベートルームが作成されました！ コード: {roomId}"
 }
