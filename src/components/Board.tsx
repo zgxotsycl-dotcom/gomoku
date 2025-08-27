@@ -147,7 +147,7 @@ const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: Bo
     socket.on('new-game-starting', () => { toast.success(t('RematchStarting')); internalReset(); });
     socket.on('room-full-or-invalid', () => toast.error(t('RoomFullOrInvalid')));
     socket.on('opponent-disconnected', () => { toast.error(t('OpponentDisconnected')); resetGame(gameMode); });
-    const handleNewEmoticon = (data) => { const newEmoticon = { ...data, id: Date.now() }; setEmoticons(current => [...current, newEmoticon]); setTimeout(() => { setEmoticons(current => current.filter(e => e.id !== newEmoticon.id)); }, 4000); };
+    const handleNewEmoticon = (data: { fromId: string, emoticon: string }) => { const newEmoticon = { ...data, id: Date.now() }; setEmoticons(current => [...current, newEmoticon]); setTimeout(() => { setEmoticons(current => current.filter(e => e.id !== newEmoticon.id)); }, 4000); };
     socket.on('new-emoticon', handleNewEmoticon);
     return () => { socket.off('new-emoticon', handleNewEmoticon); socket.disconnect(); };
   }, [gameMode, user, userProfile, spectateRoomId, t]);
