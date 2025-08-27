@@ -1,12 +1,17 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Board from '@/components/Board';
 import Link from 'next/link';
 
 const SpectatePage = () => {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const roomId = searchParams.get('roomId');
+
+  const handleExit = () => {
+    router.push('/');
+  };
 
   if (!roomId) {
     return (
@@ -21,7 +26,7 @@ const SpectatePage = () => {
     <main className="flex flex-col items-center justify-center min-h-screen bg-gray-800 p-10">
       <h1 className="text-3xl font-bold text-white mb-4">Spectating Game</h1>
       <h2 className="text-lg text-gray-400 mb-8">Room: {roomId}</h2>
-      <Board spectateRoomId={roomId} initialGameMode={'pvo'} />
+      <Board spectateRoomId={roomId} initialGameMode={'pvo'} onExit={handleExit} />
        <div className="mt-8">
           <Link href="/" className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700">Back to Homepage</Link>
       </div>
