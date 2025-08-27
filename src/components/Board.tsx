@@ -21,6 +21,7 @@ export type Game = { id: number; moves: { player: Player, row: number, col: numb
 export type EmoticonMessage = { id: number; fromId: string; emoticon: string };
 
 interface BoardProps {
+  initialGameMode: GameMode;
   spectateRoomId?: string | null;
   replayGame?: Game | null;
 }
@@ -52,12 +53,12 @@ const calculateElo = (playerRating: number, opponentRating: number, score: 1 | 0
   return Math.round(playerRating + K_FACTOR * (score - expectedScore));
 };
 
-const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
+const Board = ({ initialGameMode, spectateRoomId = null, replayGame = null }: BoardProps) => {
   const { t } = useTranslation();
   const [board, setBoard] = useState<Array<Array<Player | null>>>(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)));
   const [currentPlayer, setCurrentPlayer] = useState<Player>('black');
   const [winner, setWinner] = useState<Player | null>(null);
-  const [gameMode, setGameMode] = useState<GameMode>(spectateRoomId ? 'pvo' : (replayGame ? replayGame.game_type : 'pvp'));
+  const [gameMode, setGameMode] = useState<GameMode>(spectateRoomId ? 'pvo' : (replayGame ? replayGame.game_type : initialGameMode));
   const [gameState, setGameState] = useState<GameState>(replayGame ? 'replay' : 'waiting');
   const [room, setRoom] = useState(spectateRoomId || '');
   const [playerRole, setPlayerRole] = useState<Player | null>(null);

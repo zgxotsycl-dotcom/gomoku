@@ -36,7 +36,7 @@ const Ranking = () => {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, username, elo_rating, is_supporter, nickname_color, badge_color')
-        .neq('elo_rating', 1200)
+        .gt('games_played', 0)
         .order('elo_rating', { ascending: false })
         .limit(50);
 

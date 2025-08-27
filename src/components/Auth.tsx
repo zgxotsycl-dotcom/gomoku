@@ -23,7 +23,7 @@ const AuthComponent = () => {
             appearance={{ theme: ThemeSupa }}
             theme="dark"
             providers={['github', 'google']}
-            redirectTo={`${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`}
+            redirectTo={typeof window !== 'undefined' ? window.location.origin : ''}
         />
         <div className="relative flex py-3 items-center">
             <div className="flex-grow border-t border-gray-500"></div>
