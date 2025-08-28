@@ -2,7 +2,6 @@
 
 import React from 'react';
 import PayPalButton from '@/components/PayPalButton';
-import PaddleButton from '@/components/PaddleButton';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabaseClient';
 import { FaStar, FaPalette, FaHistory, FaBrain } from 'react-icons/fa';
@@ -55,10 +54,14 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
               {t('LoginToSupport')}
             </button>
           ) : (
-            <div className="flex flex-col sm:flex-row gap-4">
-              <PayPalButton onPaymentSuccess={onClose} />
-              <PaddleButton onPaymentSuccess={onClose} />
-            </div>
+            <a
+              href="https://3614751670147.gumroad.com/l/tkdjxl"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-3 bg-pink-500 text-white font-bold rounded-lg hover:bg-pink-600 transition-colors text-lg"
+            >
+              {t('BecomeASupporter')}
+            </a>
           )}
           <button onClick={onClose} className="text-sm text-gray-400 hover:underline">{t('MaybeLater')}</button>
         </div>

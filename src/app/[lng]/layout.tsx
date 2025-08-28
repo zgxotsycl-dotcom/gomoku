@@ -33,11 +33,8 @@ export default function RootLayout({
       <body className={inter.className}>
         <I18nProvider lng={lng}>
           <AuthProvider>
-            <Script 
-              src={`https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD&intent=capture`}
-              strategy="beforeInteractive"
-            />
-            <Script src="https://cdn.paddle.com/paddle/paddle.js" strategy="lazyOnload" />
+                        <Script src="https://cdn.paddle.com/paddle/v2/paddle.js" strategy="lazyOnload" />
+            {children}
             {children}
             <Toaster />
           </AuthProvider>
