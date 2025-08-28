@@ -93,7 +93,7 @@ export default function Home() {
         </div>
       ) : (
         <main className="flex flex-col items-center justify-center p-10 pt-20">
-          <AccountInfo onOpenSettings={() => setSettingsOpen(true)} onOpenBenefits={handleBecomeSupporter} />
+          {!selectedGameMode && <AccountInfo onOpenSettings={() => setSettingsOpen(true)} onOpenBenefits={handleBecomeSupporter} />}
           <h1 className="text-5xl font-extrabold text-white mb-8 text-center shadow-lg [text-shadow:_2px_2px_8px_rgb(0_0_0_/_50%)]">
             {t('GomokuGame')}
           </h1>
@@ -105,7 +105,7 @@ export default function Home() {
           ) : (
             <div className="text-center">
               <h2 className="text-3xl text-white mb-6">{t('SelectGameMode')}</h2>
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <button onClick={() => setSelectedGameMode('pva')} className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-xl">
                   {t('PvsAI')}
                 </button>
@@ -116,11 +116,13 @@ export default function Home() {
                   {t('PvsPlayer')}
                 </button>
               </div>
-              {!profile?.is_supporter && (
-                <button onClick={handleBecomeSupporter} className="mb-8 px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-lg">
-                  {t('BecomeASupporter')}
-                </button>
-              )}
+              <div className="mt-8 mb-8">
+                {!profile?.is_supporter && (
+                  <button onClick={handleBecomeSupporter} className="px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-lg">
+                    {t('BecomeASupporter')}
+                  </button>
+                )}
+              </div>
               <Ranking />
             </div>
           )}

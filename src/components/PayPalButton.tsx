@@ -13,8 +13,11 @@ declare global {
 const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) => {
     const paypalRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (paypalRef.current && paypalRef.current.childNodes.length === 0 && window.paypal) {
+        useEffect(() => {
+        if (paypalRef.current && window.paypal) {
+            // Clear the container first to prevent duplicates on re-render
+            paypalRef.current.innerHTML = "";
+
             try {
                 window.paypal.Buttons({
                     createOrder: async (data: any, actions: any) => {
@@ -33,8 +36,6 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
                     },
                     onApprove: async (data: any, actions: any) => {
                         toast.success('Payment approved! Please wait while we verify...');
-                        // Here you would typically call another function to verify the payment on your backend
-                        // and grant supporter status.
                         onPaymentSuccess();
                         return actions.order.capture();
                     },

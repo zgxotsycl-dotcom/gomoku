@@ -3,6 +3,8 @@
 import React from 'react';
 import PayPalButton from '@/components/PayPalButton';
 import { useTranslation } from 'react-i18next';
+import { supabase } from '@/lib/supabaseClient';
+import { FaStar, FaPalette, FaHistory, FaBrain } from 'react-icons/fa';
 
 interface SupporterBenefitsModalProps {
   isOpen: boolean;
@@ -15,14 +17,14 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
   if (!isOpen) return null;
 
   const benefits = [
-    { title: t('Benefit1Title'), description: t('Benefit1Desc') },
-    { title: t('Benefit2Title'), description: t('Benefit2Desc') },
-    { title: t('Benefit3Title'), description: t('Benefit3Desc') },
-    { title: t('Benefit4Title'), description: t('Benefit4Desc') },
+    { icon: <FaStar className="text-yellow-400" />, title: t('Benefit1Title'), description: t('Benefit1Desc') },
+    { icon: <FaPalette className="text-cyan-400" />, title: t('Benefit2Title'), description: t('Benefit2Desc') },
+    { icon: <FaHistory className="text-indigo-400" />, title: t('Benefit3Title'), description: t('Benefit3Desc') },
+    { icon: <FaBrain className="text-green-400" />, title: t('Benefit4Title'), description: t('Benefit4Desc') },
   ];
 
   const handleLogin = () => {
-    // Logic to handle login
+    supabase.auth.signOut();
     onClose();
   };
 
@@ -36,9 +38,12 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
         
         <div className="space-y-4">
           {benefits.map((benefit, index) => (
-            <div key={index} className="p-3 bg-gray-700 rounded-lg">
-              <h3 className="font-semibold text-white">{benefit.title}</h3>
-              <p className="text-sm text-gray-400">{benefit.description}</p>
+            <div key={index} className="p-3 bg-gray-700 rounded-lg flex items-center gap-4">
+              <div className="text-2xl">{benefit.icon}</div>
+              <div>
+                <h3 className="font-semibold text-white">{benefit.title}</h3>
+                <p className="text-sm text-gray-400">{benefit.description}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -49,20 +54,18 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
               {t('LoginToSupport')}
             </button>
           ) : (
-            <div className="flex flex-col items-center gap-4 w-full">
-              <div className="w-full p-3 bg-gray-900 rounded-lg">
-                <p className="text-center text-white font-bold mb-2">For International Users</p>
+            <div className="flex flex-col sm:flex-row gap-4 w-full">
+              <div className="flex-1">
                 <PayPalButton onPaymentSuccess={onClose} />
               </div>
-              <div className="w-full p-3 bg-gray-900 rounded-lg">
-                <p className="text-center text-white font-bold mb-2">국내 사용자 (For Korean Users)</p>
+              <div className="flex-1">
                 <a
                   href="https://3614751670147.gumroad.com/l/tkdjxl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full text-center px-6 py-3 bg-pink-500 text-white font-bold rounded-lg hover:bg-pink-600 transition-colors text-lg"
+                  className="block w-full text-center px-6 py-2 bg-pink-500 text-white font-bold rounded-lg hover:bg-pink-600 transition-colors"
                 >
-                  {t('BecomeASupporter')} (Gumroad)
+                  Card / Etc. (Gumroad)
                 </a>
               </div>
             </div>
