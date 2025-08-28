@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import PayPalButton from '@/components/PayPalButton';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabaseClient';
 import { FaStar, FaPalette, FaHistory, FaBrain } from 'react-icons/fa';
