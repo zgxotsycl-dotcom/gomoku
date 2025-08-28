@@ -216,7 +216,10 @@ const Board = ({ initialGameMode, onExit, onGameStateChange, spectateRoomId = nu
   
   // AI Worker Setup
   useEffect(() => { 
-    aiWorkerRef.current = new Worker('/ai.worker.js'); 
+    // Create a URL object for the worker script to ensure correct pathing
+    const workerUrl = new URL('/ai.worker.js', window.location.origin);
+    aiWorkerRef.current = new Worker(workerUrl);
+
     aiWorkerRef.current.onmessage = (e) => { 
       console.log('Board.tsx: Message received from AI worker:', e.data);
       if (e.data.error) { console.error('AI Worker Error:', e.data.error); return; }
