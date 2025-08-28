@@ -11,12 +11,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useTranslation } from 'react-i18next';
 
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+
 const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () => void, onOpenBenefits: () => void }) => {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
 
   return (
     <div className="absolute top-4 right-4 text-white flex items-center gap-4 z-10">
+      <LanguageSwitcher />
       <span>{profile?.username || user?.email}</span>
       {profile?.is_supporter && (
         <>

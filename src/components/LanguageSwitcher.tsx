@@ -2,17 +2,26 @@
 
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { languages } from '@/i18n/settings';
 
 export default function LanguageSwitcher() {
   const { i18n } = useTranslation();
+  const router = useRouter();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
   const changeLanguage = (lng: string) => {
-    i18n.changeLanguage(lng);
+    const currentLng = pathname.split('/')[1];
+    if (languages.includes(currentLng)) {
+      const newPath = pathname.replace(`/${currentLng}`, `/${lng}`);
+      router.push(newPath);
+    } else {
+      router.push(`/${lng}${pathname}`);
+    }
     setIsOpen(false);
   };
 
-  // Add an index signature to the locales object type
   const locales: { [key: string]: string } = {
     en: 'English',
     ko: '한국어',
@@ -35,7 +44,8 @@ export default function LanguageSwitcher() {
               <li key={lng}>
                 <button 
                   onClick={() => changeLanguage(lng)}
-                  className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-600"
+                  className="w-full text-left px-4 py-2 text-sm text-white hover:bg-gray-600 disabled:text-gray-400"
+                  disabled={i18n.language === lng}
                 >
                   {locales[lng]}
                 </button>
