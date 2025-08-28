@@ -15,36 +15,42 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
     const paypalRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        // Prevent re-rendering of the button if it already exists
+        if (!paypalRef.current || paypalRef.current.childNodes.length > 0) {
+            return;
+        }
+
         if (window.paypal) {
-            window.paypal.Buttons({
-                // Using 'any' to bypass strict type checking for the PayPal SDK arguments
-                createOrder: async (data: any, actions: any) => {
-                    try {
-                        const { data: functionData, error } = await supabase.functions.invoke('create-paypal-order', {
-                            body: { locale: 'en' } // Defaulting to 'en' for now
-                        });
-                        if (error) {
-                            console.error("Supabase function returned an error:", error);
-                            throw new Error(error.message);
+            try {
+                window.paypal.Buttons({
+                    createOrder: async (data: any, actions: any) => {
+                        try {
+                            const { data: functionData, error } = await supabase.functions.invoke('create-paypal-order');
+                            if (error) {
+                                console.error("Supabase function returned an error:", error);
+                                throw new Error(error.message);
+                            }
+                            console.log("Data received from Supabase function:", functionData);
+                            return functionData.orderId;
+                        } catch (err) {
+                            toast.error('Could not initiate PayPal payment.');
+                            console.error(err);
+                            return '';
                         }
-                        console.log("Data received from Supabase function:", functionData);
-                        return functionData.orderId;
-                    } catch (err) {
-                        toast.error('Could not initiate PayPal payment.');
-                        console.error(err);
-                        return ''; // Return empty string on failure
-                    }
-                },
-                onApprove: async (data: any, actions: any) => {
-                    toast.success('Payment approved! Please wait while we verify...');
-                    onPaymentSuccess();
-                    return actions.order.capture();
-                },
-                onError: (err: any) => {
-                    toast.error('An error occurred with the PayPal payment.');
-                    console.error('PayPal Error:', err);
-                },
-            }).render(paypalRef.current);
+                    },
+                    onApprove: async (data: any, actions: any) => {
+                        toast.success('Payment approved! Please wait while we verify...');
+                        onPaymentSuccess();
+                        return actions.order.capture();
+                    },
+                    onError: (err: any) => {
+                        toast.error('An error occurred with the PayPal payment.');
+                        console.error('PayPal Error:', err);
+                    },
+                }).render(paypalRef.current);
+            } catch (error) {
+                console.error("Failed to render PayPal buttons:", error);
+            }
         } else {
             console.error("PayPal SDK not loaded.");
         }
