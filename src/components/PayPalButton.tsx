@@ -24,8 +24,10 @@ const PayPalButton = ({ onPaymentSuccess }: { onPaymentSuccess: () => void }) =>
                             body: { locale: 'en' } // Defaulting to 'en' for now
                         });
                         if (error) {
+                            console.error("Supabase function returned an error:", error);
                             throw new Error(error.message);
                         }
+                        console.log("Data received from Supabase function:", functionData);
                         return functionData.orderId;
                     } catch (err) {
                         toast.error('Could not initiate PayPal payment.');
