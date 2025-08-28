@@ -28,6 +28,7 @@ export default function RootLayout({
   children: React.ReactNode
   params: { lng: string }
 }) {
+  console.log("PayPal Client ID Used:", process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID);
   return (
     <html lang={lng}>
       <body className={inter.className}>
