@@ -15,7 +15,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   path: "/socket.io/",
   cors: {
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "https://www.omokk.com"],
     methods: ["GET", "POST"]
   }
 });
