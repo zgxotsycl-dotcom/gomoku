@@ -12,11 +12,11 @@ const BOARD_SIZE = 19;
 const K_FACTOR = 32;
 
 // --- Type definitions ---
-type GameMode = 'pvp' | 'pva' | 'pvo';
-type GameState = 'waiting' | 'playing' | 'post-game' | 'replay';
-type Profile = { id: string; username: string; elo_rating: number; is_supporter: boolean; };
-type Game = { id: number; moves: { player: Player, row: number, col: number }[]; game_type: GameMode; };
-type EmoticonMessage = { id: number; fromId: string; emoticon: string };
+export type GameMode = 'pvp' | 'pva' | 'pvo';
+export type GameState = 'waiting' | 'playing' | 'post-game' | 'replay';
+export type Profile = { id: string; username: string; elo_rating: number; is_supporter: boolean; };
+export type Game = { id: number; moves: { player: Player, row: number, col: number }[]; game_type: GameMode; };
+export type EmoticonMessage = { id: number; fromId: string; emoticon: string };
 
 // --- Helper Functions ---
 const checkWin = (board: (Player | null)[][], player: Player, row: number, col: number): boolean => {
