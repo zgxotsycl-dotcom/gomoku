@@ -220,8 +220,6 @@ const Board = ({ initialGameMode, onExit, onGameStateChange, spectateRoomId = nu
   const currentBoard = whatIfState ? whatIfState.board : board;
   // ... (profile logic is the same)
 
-  
-
   return (
     <div className="flex flex-col items-center">
       {showRoomCodeModal && room && <RoomCodeModal roomId={room} onClose={() => setShowRoomCodeModal(false)} />}
