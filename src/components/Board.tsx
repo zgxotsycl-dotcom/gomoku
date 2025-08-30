@@ -220,12 +220,12 @@ const Board = ({ initialGameMode, onExit, onGameStateChange, spectateRoomId = nu
   const currentBoard = whatIfState ? whatIfState.board : board;
   // ... (profile logic is the same)
 
-  const renderPvaRoleSelection = () => null;
+  
 
   return (
     <div className="flex flex-col items-center">
       {showRoomCodeModal && room && <RoomCodeModal roomId={room} onClose={() => setShowRoomCodeModal(false)} />}
-      {gameMode === 'pva' && !pvaRoleSelected && gameState !== 'replay' ? renderPvaRoleSelection() : (
+      {gameMode === 'pva' && !pvaRoleSelected && gameState !== 'replay' ? null : (
         <>
           {/* ... PlayerDisplay etc. ... */}
           {(gameMode !== 'pvo' || room) && (
