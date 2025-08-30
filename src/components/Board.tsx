@@ -220,9 +220,7 @@ const Board = ({ initialGameMode, onExit, onGameStateChange, spectateRoomId = nu
   const currentBoard = whatIfState ? whatIfState.board : board;
   // ... (profile logic is the same)
 
-  const renderPvaRoleSelection = () => (
-    // ... (same as before)
-  );
+  const renderPvaRoleSelection = () => null;
 
   return (
     <div className="flex flex-col items-center">
