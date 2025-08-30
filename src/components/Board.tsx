@@ -14,7 +14,7 @@ const K_FACTOR = 32;
 // --- Type definitions ---
 export type GameMode = 'pvp' | 'pva' | 'pvo';
 export type GameState = 'waiting' | 'playing' | 'post-game' | 'replay';
-export type Profile = { id: string; username: string; elo_rating: number; is_supporter: boolean; };
+export type Profile = { id: string; username: string; elo_rating: number; is_supporter: boolean; nickname_color: string | null; badge_color: string | null; };
 export type Game = { id: number; moves: { player: Player, row: number, col: number }[]; game_type: GameMode; };
 export type EmoticonMessage = { id: number; fromId: string; emoticon: string };
 
@@ -256,7 +256,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
   useEffect(() => { if (winner && gameState !== 'replay') handleGameEnd(winner); }, [winner, gameState, handleGameEnd]);
 
-  useEffect(() => { const fetchUserProfile = async () => { if (!user) return; const { data, error } = await supabase.from('profiles').select('id, username, elo_rating, is_supporter').eq('id', user.id).single(); if (error) console.error('Error fetching user profile:', error); else setUserProfile(data); }; fetchUserProfile(); }, [user]);
+  useEffect(() => { const fetchUserProfile = async () => { if (!user) return; const { data, error } = await supabase.from('profiles').select('id, username, elo_rating, is_supporter, nickname_color, badge_color').eq('id', user.id).single(); if (error) console.error('Error fetching user profile:', error); else setUserProfile(data); }; fetchUserProfile(); }, [user]);
 
   useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js'); aiWorkerRef.current.onmessage = (e) => { const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
 
@@ -320,7 +320,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
   const currentBoard = whatIfState ? whatIfState.board : (replayBoard || board);
   
-  const aiProfile: Profile | null = gameMode === 'pva' ? { id: 'ai', username: 'Gomoku AI', elo_rating: 1500, is_supporter: true } : null;
+  const aiProfile: Profile | null = gameMode === 'pva' ? { id: 'ai', username: 'Gomoku AI', elo_rating: 1500, is_supporter: true, nickname_color: null, badge_color: null } : null;
 
   const p1Profile = gameMode === 'pvo' ? (playerRole === 'black' ? userProfile : opponentProfile) : (gameMode === 'pva' ? (aiPlayer === 'white' ? userProfile : aiProfile) : userProfile);
   const p2Profile = gameMode === 'pvo' ? (playerRole === 'white' ? userProfile : opponentProfile) : (gameMode === 'pva' ? (aiPlayer === 'black' ? userProfile : aiProfile) : opponentProfile);
