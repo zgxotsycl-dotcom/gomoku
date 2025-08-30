@@ -18,6 +18,14 @@ export type Profile = { id: string; username: string; elo_rating: number; is_sup
 export type Game = { id: number; moves: { player: Player, row: number, col: number }[]; game_type: GameMode; };
 export type EmoticonMessage = { id: number; fromId: string; emoticon: string };
 
+interface GameData {
+  game_type: GameMode;
+  winner_player: Player;
+  moves: { player: Player; row: number; col: number; }[];
+  player_black_id?: string | null;
+  player_white_id?: string | null;
+}
+
 // --- Helper Functions ---
 const checkWin = (board: (Player | null)[][], player: Player, row: number, col: number): boolean => {
   const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
@@ -44,12 +52,12 @@ const calculateElo = (playerRating: number, opponentRating: number, score: 1 | 0
 };
 
 // --- Sub-components ---
-interface PostGameManagerProps { isPlayer: boolean; isSpectator: boolean; resetGame: (mode: GameMode) => void; gameMode: GameMode; room: string; socketRef: React.MutableRefObject<Socket | null>; }
-const PostGameManager = ({ isPlayer, isSpectator, resetGame, gameMode, room, socketRef }: PostGameManagerProps) => {
+interface PostGameManagerProps { isPlayer: boolean; isSpectator: boolean; resetGame: (mode: GameMode) => void; onExit: () => void; gameMode: GameMode; room: string; socketRef: React.MutableRefObject<Socket | null>; }
+const PostGameManager = ({ isPlayer, isSpectator, resetGame, onExit, gameMode, room, socketRef }: PostGameManagerProps) => {
     const { t } = useTranslation();
     const [showSpectatorPopup, setShowSpectatorPopup] = useState(true);
     const handleRematch = () => { toast.success(t('PostGameManager.votedForRematch')); socketRef.current?.emit('rematch-vote', room); };
-    const handleLeave = () => resetGame(gameMode);
+    const handleLeave = onExit;
     const handleJoin = () => { toast.success(t('PostGameManager.requestingToJoin')); socketRef.current?.emit('request-to-join', room); };
     if (isPlayer) {
         return (
@@ -147,13 +155,18 @@ const EmoticonPicker = ({ onSelect }: EmoticonPickerProps) => {
     );
 };
 
-interface BoardProps { spectateRoomId?: string | null; replayGame?: Game | null; }
-const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
+interface BoardProps { 
+  initialGameMode: GameMode;
+  onExit: () => void;
+  spectateRoomId?: string | null; 
+  replayGame?: Game | null; 
+}
+const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = null }: BoardProps) => {
   const { t } = useTranslation();
   const [board, setBoard] = useState<Array<Array<Player | null>>>(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)));
   const [currentPlayer, setCurrentPlayer] = useState<Player>('black');
   const [winner, setWinner] = useState<Player | null>(null);
-  const [gameMode, setGameMode] = useState<GameMode>(spectateRoomId ? 'pvo' : (replayGame ? replayGame.game_type : 'pvp'));
+  const [gameMode, setGameMode] = useState<GameMode>(spectateRoomId ? 'pvo' : (replayGame ? replayGame.game_type : initialGameMode));
   const [gameState, setGameState] = useState<GameState>(replayGame ? 'replay' : 'waiting');
   const [room, setRoom] = useState(spectateRoomId || '');
   const [playerRole, setPlayerRole] = useState<Player | null>(null);
@@ -177,7 +190,7 @@ const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
   const userProfileRef = useRef(userProfile);
   userProfileRef.current = userProfile;
 
-  const handleStonePlacement = useCallback((row: number, col: number, isAI: boolean = false) => {
+  const handleStonePlacement = useCallback((row: number, col: number) => {
     if (whatIfState) {
         const board = whatIfState.board;
         if (board[row][col]) return;
@@ -210,7 +223,7 @@ const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
 
   const handleGameEnd = useCallback(async (gameWinner: Player) => {
     if (isSpectator) return;
-    let gameData: any = { game_type: gameMode, winner_player: gameWinner, moves: history };
+    let gameData: GameData = { game_type: gameMode, winner_player: gameWinner, moves: history };
     if (gameMode === 'pvo' && userProfile && opponentProfile) {
       gameData.player_black_id = playerRole === 'black' ? userProfile.id : opponentProfile.id;
       gameData.player_white_id = playerRole === 'white' ? userProfile.id : opponentProfile.id;
@@ -245,7 +258,7 @@ const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
 
   useEffect(() => { const fetchUserProfile = async () => { if (!user) return; const { data, error } = await supabase.from('profiles').select('id, username, elo_rating, is_supporter').eq('id', user.id).single(); if (error) console.error('Error fetching user profile:', error); else setUserProfile(data); }; fetchUserProfile(); }, [user]);
 
-  useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js'); aiWorkerRef.current.onmessage = (e) => { const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col, true); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
+  useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js'); aiWorkerRef.current.onmessage = (e) => { const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
 
   useEffect(() => { const fetchAiKnowledge = async () => { const { data, error } = await supabase.from('ai_knowledge').select('*'); if (error) console.error('Error fetching AI knowledge:', error); else { const knowledgeMap = new Map(data.map(item => [item.pattern_hash, { wins: item.wins, losses: item.losses }])); setAiKnowledge(knowledgeMap); } }; fetchAiKnowledge(); }, []);
 
@@ -279,7 +292,7 @@ const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
     socket.on('connect', () => { if (user) socket.emit('authenticate', user.id); if (spectateRoomId) socket.emit('join-private-room', spectateRoomId, userProfileRef.current); });
     socket.on('assign-role', (role) => setPlayerRole(role));
     socket.on('game-start', ({ roomId }) => { setRoom(roomId); setGameState('playing'); toast.success(t('Board.toast.gameStarted')); if (userProfileRef.current) socket.emit('share-profile', { room: roomId, profile: userProfileRef.current }); });
-    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast.info(t('Board.toast.nowSpectating')); });
+    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast(t('Board.toast.nowSpectating')); });
     socket.on('opponent-profile', (profile) => setOpponentProfile(profile));
     socket.on('game-state-update', ({ move, newPlayer }) => { setBoard(prevBoard => { const newBoard = prevBoard.map(r => [...r]); newBoard[move.row][move.col] = newPlayer === 'black' ? 'white' : 'black'; return newBoard; }); setCurrentPlayer(newPlayer); });
     socket.on('game-over-update', ({ winner: winnerName }) => { setWinner(winnerName); setGameState('post-game'); });
@@ -300,7 +313,7 @@ const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
 
   const replayBoard = gameState === 'replay' ? Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)) : null;
   if (replayBoard) {
-    for (let i = 0; i < replayMoveIndex; i++) {
+    for (let i = 0; i <= replayMoveIndex; i++) {
         if(history[i]) replayBoard[history[i].row][history[i].col] = history[i].player;
     }
   }
@@ -365,7 +378,7 @@ const Board = ({ spectateRoomId = null, replayGame = null }: BoardProps) => {
       )}
 
       {winner && gameState !== 'replay' && <div className="mt-4 text-2xl font-bold text-white">{t('Board.winnerMessage', { winner: winner.charAt(0).toUpperCase() + winner.slice(1) })}</div>}
-      {gameState === 'post-game' && <PostGameManager isPlayer={!isSpectator} isSpectator={isSpectator} resetGame={resetGame} gameMode={gameMode} room={room} socketRef={socketRef} />}
+      {gameState === 'post-game' && <PostGameManager isPlayer={!isSpectator} isSpectator={isSpectator} resetGame={resetGame} onExit={onExit} gameMode={gameMode} room={room} socketRef={socketRef} />}
       {gameState === 'replay' && (
         <ReplayControls 
             moveCount={history.length}
