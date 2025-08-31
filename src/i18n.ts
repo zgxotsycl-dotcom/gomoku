@@ -9,10 +9,10 @@ import { getOptions } from './i18n/settings';
 i18n
   .use(initReactI18next)
   .use(LanguageDetector)
-  .use(resourcesToBackend((language, namespace) => import(`../public/locales/${language}/${namespace}.json`)))
+  .use(resourcesToBackend((language: string, namespace: string) => import(`../public/locales/${language}/${namespace}.json`)))
   .init(getOptions());
 
-export function useTranslation(lng, ns, options) {
+export function useTranslation(lng: string, ns?: string | string[], options?: object) {
   const ret = useTranslationOrg(ns, options);
   const { i18n } = ret;
   if (i18n.resolvedLanguage !== lng) {
