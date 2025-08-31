@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.main-background {
+  background-color: #1a202c;
+  background-image: radial-gradient(circle at 1px 1px, #374151 1px, transparent 0);
+  background-size: 2rem 2rem;
+}
+
+/* --- Board Design --- */
+.goboard {
+    background: linear-gradient(145deg, #d2b48c, #b89a74);
+    box-shadow: 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+    border: 2px solid #4a3f35;
+}
+
+.goboard-line {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.stone-shadow {
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+}
+
+/* --- Animations --- */
+@keyframes chroma-shine {
+  0%, 100% { box-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff, 2px 2px 5px rgba(0,0,0,0.5); }
+  25% { box-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 2px 2px 5px rgba(0,0,0,0.5); }
+  50% { box-shadow: 0 0 10px #ffff00, 0 0 20px #ffff00, 2px 2px 5px rgba(0,0,0,0.5); }
+  75% { box-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 2px 2px 5px rgba(0,0,0,0.5); }
+}
+
+@keyframes pulse-throb {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes slime-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) skew(15deg, 15deg);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.05) skew(-10deg, -10deg);
+  }
+  60% {
+    transform: scale(0.95) skew(5deg, 5deg);
+  }
+  80% {
+    transform: scale(1.02) skew(-2deg, -2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) skew(0, 0);
+  }
+}
+
+.winning-stone {
+  animation: chroma-shine 2s linear infinite;
+  z-index: 10;
+}
+
+.last-stone-pulse {
+  animation: pulse-throb 1.5s ease-in-out infinite;
+}
+
+.slime-in-animation {
+  animation: slime-in 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* --- New Gemini Animations --- */
+
+/* Stone Placement Animation */
+@keyframes place-stone {
+  0% {
+    opacity: 0;
+    transform: translateY(-20%) scale(0.8);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-place-stone {
+  animation: place-stone 0.3s ease-out forwards;
+}
+
+/* Game Over Modal Fade-in */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in-3s {
+  animation: fade-in 3s ease-in forwards;
+}
+
+/* Winning Line Chroma Flow */
+@keyframes chroma-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-chroma-flow {
+  background-size: 400% 400%;
+  background-image: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
+  animation: chroma-flow 3s linear infinite;
+}
+
+/* AI Game Space Background */
+@keyframes move-space {
+  from { background-position: 0 0; }
+  to { background-position: -10000px 5000px; }
+}
+.bg-space-animated {
+  background-color: #000010;
+  background-image: 
+    radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+    radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+    radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px),
+    radial-gradient(rgba(255,255,255,.4), rgba(255,255,255,.1) 2px, transparent 30px),
+    /* Nebulas */
+    radial-gradient(ellipse at center, rgba(150, 100, 255, 0.4) 0%, rgba(150, 100, 255, 0) 70%),
+    radial-gradient(ellipse at center, rgba(255, 150, 100, 0.3) 0%, rgba(255, 150, 100, 0) 60%),
+    linear-gradient(to top, rgba(0, 0, 20, 1), rgba(0, 0, 0, 0));
+  background-size: 550px 550px, 350px 350px, 450px 450px, 500px 500px, 100% 100%, 80% 80%, 100% 100%;
+  background-position: 0 0, 40px 60px, 130px 270px, 70px 150px, 0 0, 0 0, 0 0;
+  animation: move-space 240s linear infinite;
+}

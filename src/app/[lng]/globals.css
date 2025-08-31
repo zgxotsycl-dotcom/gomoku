@@ -2,14 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-gray-900;
+.main-background {
+  background-color: #1a202c;
+  background-image: radial-gradient(circle at 1px 1px, #374151 1px, transparent 0);
+  background-size: 2rem 2rem;
 }
 
-/* A subtle, dark, textured background */
-.main-background {
-    background-color: #1a1a1a; /* A very dark gray */
-    background-image: linear-gradient(0deg, rgba(255,255,255,0.03) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 2rem 2rem;
+.goboard {
+    background: linear-gradient(145deg, #d2b48c, #b89a74);
+    box-shadow: 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+    border: 2px solid #4a3f35;
+}
+
+.goboard-line {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.stone-shadow {
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
 }
