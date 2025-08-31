@@ -14,7 +14,7 @@ interface SettingsModalProps {
 
 const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const { t } = useTranslation();
-  const { user, profile } = useAuth();
+  const { user, profile, updateProfile } = useAuth();
   const [username, setUsername] = useState('');
   const [nicknameColor, setNicknameColor] = useState('#FFFFFF');
   const [badgeColor, setBadgeColor] = useState('#FFD700');
@@ -102,8 +102,8 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       toast.error(t('FailedToSaveSettings') + ': ' + error.message);
     } else {
       toast.success(t('SettingsSaved'));
+      updateProfile(updateData);
       onClose();
-      window.location.reload();
     }
   };
 

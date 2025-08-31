@@ -18,6 +18,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  updateProfile: (newProfileData: Partial<Profile>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +28,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const updateProfile = (newProfileData: Partial<Profile>) => {
+    setProfile((currentProfile) => {
+      if (currentProfile) {
+        return { ...currentProfile, ...newProfileData };
+      }
+      return null;
+    });
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -49,7 +59,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    // Failsafe: If onAuthStateChange doesn't fire, stop loading after a timeout.
     const timer = setTimeout(() => {
         setLoading(false);
     }, 3000);
@@ -65,6 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     user,
     profile,
     loading,
+    updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
