@@ -4,35 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { BOARD_SIZE, checkWin } from '../../../lib/gameLogic';
 
 // --- Type Definitions ---
 type Player = 'black' | 'white';
 type GameState = 'playing' | 'post-game';
-
-const BOARD_SIZE = 19;
-
-// --- Helper Functions ---
-const checkWin = (board: (Player | null)[][], player: Player, row: number, col: number): number[][] | null => {
-  const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
-  for (const dir of directions) {
-    const line = [[row, col]];
-    for (let i = 1; i < 5; i++) {
-      const newRow = row + i * dir.y; const newCol = col + i * dir.x;
-      if (newRow < 0 || newRow >= BOARD_SIZE || newCol < 0 || newCol >= BOARD_SIZE || board[newRow][newCol] !== player) break;
-      line.push([newRow, newCol]);
-    }
-    for (let i = 1; i < 5; i++) {
-      const newRow = row - i * dir.y; const newCol = col - i * dir.x;
-      if (newRow < 0 || newRow >= BOARD_SIZE || newCol < 0 || newCol >= BOARD_SIZE || board[newRow][newCol] !== player) break;
-      line.push([newRow, newCol]);
-    }
-    if (line.length >= 5) {
-        line.sort((a, b) => Math.abs(a[0] - row) + Math.abs(a[1] - col) - (Math.abs(b[0] - row) + Math.abs(b[1] - col)));
-        return line.slice(0, 5);
-    }
-  }
-  return null;
-};
 
 // --- PvaPage Component ---
 export default function PvaPage() {
@@ -42,7 +18,7 @@ export default function PvaPage() {
   const [winner, setWinner] = useState<Player | null>(null);
   const [gameState, setGameState] = useState<GameState>('playing');
   const [playerColor, setPlayerColor] = useState<Player | null>(null);
-  const [winningLine, setWinningLine] = useState<number[][]>([]);
+  const [winningLine, setWinningLine] = useState<{row: number, col: number}[]>([]);
   
   const aiWorkerRef = useRef<Worker | null>(null);
   const stateRef = useRef({ winner, currentPlayer, playerColor, gameState, board });
@@ -150,8 +126,8 @@ export default function PvaPage() {
                 {board.map((row, r_idx) => row.map((cell, c_idx) => {
                 if (cell) {
                     const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.9)`;
-                    const isWinningStone = winningLine.some(([wr, wc]) => wr === r_idx && wc === c_idx);
-                    const winningStoneIndex = winningLine.findIndex(([wr, wc]) => wr === r_idx && wc === c_idx);
+                    const isWinningStone = winningLine.some(stone => stone.row === r_idx && stone.col === c_idx);
+                    const winningStoneIndex = winningLine.findIndex(stone => stone.row === r_idx && stone.col === c_idx);
                     const animationDelay = isWinningStone ? `${winningStoneIndex * 100}ms` : '0ms';
                     const animationClass = isWinningStone ? 'animate-chroma-shine' : 'animate-stone-drop';
 

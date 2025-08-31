@@ -7,7 +7,32 @@ const config: Config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      keyframes: {
+        'chroma-shine': {
+          '0%, 100%': { boxShadow: '0 0 10px #ff00ff, 0 0 20px #ff00ff' },
+          '25%': { boxShadow: '0 0 10px #00ffff, 0 0 20px #00ffff' },
+          '50%': { boxShadow: '0 0 10px #ffff00, 0 0 20px #ffff00' },
+          '75%': { boxShadow: '0 0 10px #00ff00, 0 0 20px #00ff00' },
+        },
+        'pulse-throb': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.2)' },
+        },
+        'slime-in': {
+          '0%': { opacity: '0', transform: 'scale(0.3) skew(15deg, 15deg)' },
+          '40%': { opacity: '1', transform: 'scale(1.05) skew(-10deg, -10deg)' },
+          '60%': { transform: 'scale(0.95) skew(5deg, 5deg)' },
+          '80%': { transform: 'scale(1.02) skew(-2deg, -2deg)' },
+          '100%': { opacity: '1', transform: 'scale(1) skew(0, 0)' },
+        },
+      },
+      animation: {
+        'chroma-shine': 'chroma-shine 2s linear infinite',
+        'pulse-throb': 'pulse-throb 1.5s ease-in-out infinite',
+        'slime-in': 'slime-in 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
+      },
+    },
   },
   plugins: [],
 }

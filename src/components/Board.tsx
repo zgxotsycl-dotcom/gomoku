@@ -25,7 +25,6 @@ interface GameData {
   player_black_id?: string | null;
   player_white_id?: string | null;
 }
-
 // --- Helper Functions ---
 const checkWin = (board: (Player | null)[][], player: Player, row: number, col: number): {row: number, col: number}[] | null => {
   const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
@@ -68,8 +67,7 @@ const GameEndModal = ({ winnerProfile, duration, children }: { winnerProfile: Pr
 
     return (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
-            {/* 아래 div의 className에 animate-slime-in을 적용합니다. */}
-            <div className="animate-slime-in bg-gray-800/50 backdrop-blur-lg border border-gray-700 rounded-xl shadow-2xl p-8 text-center text-white">
+            <div className="animate-fade-in-slow bg-gray-800/50 backdrop-blur-lg border border-gray-700 rounded-xl shadow-2xl p-8 text-center text-white">
                 <h2 className="text-4xl font-bold text-yellow-400 mb-4">
                     {t('WinnerMessage', { winner: winnerProfile.username })}
                 </h2>
@@ -135,8 +133,8 @@ const OnlineMultiplayerMenu = ({ setGameMode, socketRef, userProfile }: OnlineMu
         </div>
     );
 };
-
-interface ReplayControlsProps { moveCount: number; currentMove: number; setCurrentMove: Dispatch<SetStateAction<number>>; isPlaying: boolean; setIsPlaying: Dispatch<SetStateAction<boolean>>; onWhatIf?: () => void; }
+interface ReplayControlsProps { moveCount: number; currentMove: number; setCurrentMove: Dispatch<SetStateAction<number>>; isPlaying: boolean; setIsPlaying: Dispatch<SetStateAction<
+    boolean>>; onWhatIf?: () => void; }
 const ReplayControls = ({ moveCount, currentMove, setCurrentMove, isPlaying, setIsPlaying, onWhatIf }: ReplayControlsProps) => {
     const { t } = useTranslation();
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => setCurrentMove(Number(e.target.value));
@@ -222,169 +220,183 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     const replayIntervalRef = useRef<number | null>(null);
     const userProfileRef = useRef(userProfile);
     userProfileRef.current = userProfile;
-
     const internalReset = () => {
-  setBoard(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)));
-  setCurrentPlayer('black');
-  setWinner(null);
-  setHistory([]);
-  setGameState('playing');
-  setWhatIfState(null);
-  setWinningLine(null);
-  setShowGameEndModal(false);
-  setStartTime(Date.now());
+    setBoard(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)));
+    setCurrentPlayer('black');
+    setWinner(null);
+    setHistory([]);
+    setGameState('playing');
+    setWhatIfState(null);
+    setWinningLine(null);
+    setShowGameEndModal(false);
+    setStartTime(Date.now());
 };
 
 useEffect(() => {
-  setGameMode(initialGameMode);
-  internalReset();
-  if (initialGameMode === 'pva' && !replayGame && !spectateRoomId) {
-    const randomAiPlayer = Math.random() < 0.5 ? 'black' : 'white';
-    setAiPlayer(randomAiPlayer);
-  }
+    setGameMode(initialGameMode);
+    internalReset();
+    if (initialGameMode === 'pva' && !replayGame && !spectateRoomId) {
+        const randomAiPlayer = Math.random() < 0.5 ? 'black' : 'white';
+        setAiPlayer(randomAiPlayer);
+    }
 }, [initialGameMode, replayGame, spectateRoomId]);
 
 const handleStonePlacement = useCallback((row: number, col: number) => {
-  if (whatIfState) {
-    const board = whatIfState.board;
-    if (board[row][col]) return;
+    if (whatIfState) {
+        const board = whatIfState.board;
+        if (board[row][col]) return;
+        const newBoard = board.map(r => [...r]);
+        newBoard[row][col] = whatIfState.player;
+        const nextPlayer = whatIfState.player === 'black' ? 'white' : 'black';
+        setWhatIfState({ board: newBoard, player: nextPlayer });
+        aiWorkerRef.current?.postMessage({ board: newBoard, player: nextPlayer, knowledge: aiKnowledge });
+        return;
+    }
+
+    if (board[row][col] || winner || isSpectator || gameState !== 'playing') return;
+    if (gameMode === 'pvo' && currentPlayer !== playerRole) { toast.error(t('NotYourTurn')); return; }
+
     const newBoard = board.map(r => [...r]);
-    newBoard[row][col] = whatIfState.player;
-    const nextPlayer = whatIfState.player === 'black' ? 'white' : 'black';
-    setWhatIfState({ board: newBoard, player: nextPlayer });
-    aiWorkerRef.current?.postMessage({ board: newBoard, player: nextPlayer, knowledge: aiKnowledge });
-    return;
-  }
+    newBoard[row][col] = currentPlayer;
+    const newHistory = [...history, { player: currentPlayer, row, col }];
+    setBoard(newBoard);
+    setHistory(newHistory);
 
-  if (board[row][col] || winner || isSpectator || gameState !== 'playing') return;
-  if (gameMode === 'pvo' && currentPlayer !== playerRole) { toast.error(t('NotYourTurn')); return; }
-
-  const newBoard = board.map(r => [...r]);
-  newBoard[row][col] = currentPlayer;
-  const newHistory = [...history, { player: currentPlayer, row, col }];
-  setBoard(newBoard);
-  setHistory(newHistory);
-
-  const winInfo = checkWin(newBoard, currentPlayer, row, col);
-  if (winInfo) {
-    setWinner(currentPlayer);
-    setWinningLine(winInfo);
-    if(startTime) {
-      const durationInSeconds = (Date.now() - startTime) / 1000;
-      setGameDuration(formatDuration(durationInSeconds));
-    }
-    setGameState('post-game');
-    setTimeout(() => setShowGameEndModal(true), 1000);
-    if (gameMode === 'pvo') socketRef.current?.emit('game-over', { roomId: room, winner: currentPlayer });
-  } else {
-    const newPlayer = currentPlayer === 'black' ? 'white' : 'black';
-    setCurrentPlayer(newPlayer);
-  }
-}, [board, currentPlayer, gameState, gameMode, isSpectator, playerRole, room, winner, whatIfState, aiKnowledge, t, history, startTime]);
-const handleGameEnd = useCallback(async (gameWinner: Player) => {
-  if (isSpectator || gameMode === 'pvp') return;
-  let gameData: GameData = { game_type: gameMode, winner_player: gameWinner, moves: history };
-  if (gameMode === 'pvo' && userProfile && opponentProfile) {
-    gameData.player_black_id = playerRole === 'black' ? userProfile.id : opponentProfile.id;
-    gameData.player_white_id = playerRole === 'white' ? userProfile.id : opponentProfile.id;
-  } else if (gameMode === 'pva' && userProfile) {
-    if (aiPlayer === 'white') {
-      gameData.player_black_id = userProfile.id;
-      gameData.player_white_id = null;
+    const winInfo = checkWin(newBoard, currentPlayer, row, col);
+    if (winInfo) {
+        setWinner(currentPlayer);
+        setWinningLine(winInfo);
+        if(startTime) {
+            const durationInSeconds = (Date.now() - startTime) / 1000;
+            setGameDuration(formatDuration(durationInSeconds));
+        }
+        setGameState('post-game');
+        setTimeout(() => setShowGameEndModal(true), 1000);
+        if (gameMode === 'pvo') socketRef.current?.emit('game-over', { roomId: room, winner: currentPlayer });
     } else {
-      gameData.player_black_id = null;
-      gameData.player_white_id = userProfile.id;
+        const newPlayer = currentPlayer === 'black' ? 'white' : 'black';
+        setCurrentPlayer(newPlayer);
     }
-  }
-  const { data: savedGame, error: gameSaveError } = await supabase.from('games').insert([gameData]).select().single();
-  if (gameSaveError || !savedGame) { toast.error(t('FailedToSaveGame')); return; }
-  else {
-    toast.success(t('GameResultsSaved'));
-    if (userProfile?.is_supporter) await supabase.rpc('add_replay_and_prune', { user_id_in: userProfile.id, game_id_in: savedGame.id });
-    if (opponentProfile?.is_supporter) await supabase.rpc('add_replay_and_prune', { user_id_in: opponentProfile.id, game_id_in: savedGame.id });
-  }
-  if (gameMode === 'pvo' && userProfile && opponentProfile) {
-    const didIWin = playerRole === gameWinner;
-    const myNewElo = calculateElo(userProfile.elo_rating ?? 1500, opponentProfile.elo_rating ?? 1500, didIWin ? 1 : 0);
-    const opponentNewElo = calculateElo(opponentProfile.elo_rating ?? 1500, userProfile.elo_rating ?? 1500, didIWin ? 0 : 1);
-    toast.success(`${t('YourNewElo')}: ${myNewElo} (${myNewElo - userProfile.elo_rating >= 0 ? '+' : ''}${myNewElo - userProfile.elo_rating})`);
-    await supabase.rpc('update_elo', { winner_id: didIWin ? userProfile.id : opponentProfile.id, loser_id: didIWin ? opponentProfile.id : userProfile.id, winner_new_elo: didIWin ? myNewElo : opponentNewElo, loser_new_elo: didIWin ? opponentNewElo : myNewElo });
-    setUserProfile(p => p ? { ...p, elo_rating: myNewElo } : null);
-    setOpponentProfile(p => p ? { ...p, elo_rating: opponentNewElo } : null);
-  }
+}, [board, currentPlayer, gameState, gameMode, isSpectator, playerRole, room, winner, whatIfState, aiKnowledge, t, history, startTime]);
+
+const handleGameEnd = useCallback(async (gameWinner: Player) => {
+    if (isSpectator || gameMode === 'pvp') return;
+    let gameData: GameData = { game_type: gameMode, winner_player: gameWinner, moves: history };
+    if (gameMode === 'pvo' && userProfile && opponentProfile) {
+        gameData.player_black_id = playerRole === 'black' ? userProfile.id : opponentProfile.id;
+        gameData.player_white_id = playerRole === 'white' ? userProfile.id : opponentProfile.id;
+    } else if (gameMode === 'pva' && userProfile) {
+        if (aiPlayer === 'white') {
+            gameData.player_black_id = userProfile.id;
+            gameData.player_white_id = null;
+        } else {
+            gameData.player_black_id = null;
+            gameData.player_white_id = userProfile.id;
+        }
+    }
+    const { data: savedGame, error: gameSaveError } = await supabase.from('games').insert([gameData]).select().single();
+    if (gameSaveError || !savedGame) { toast.error(t('FailedToSaveGame')); return; }
+    else {
+        toast.success(t('GameResultsSaved'));
+        if (userProfile?.is_supporter) await supabase.rpc('add_replay_and_prune', { user_id_in: userProfile.id, game_id_in: savedGame.id });
+        if (opponentProfile?.is_supporter) await supabase.rpc('add_replay_and_prune', { user_id_in: opponentProfile.id, game_id_in: savedGame.id });
+    }
+    if (gameMode === 'pvo' && userProfile && opponentProfile) {
+        const didIWin = playerRole === gameWinner;
+        const myNewElo = calculateElo(userProfile.elo_rating ?? 1500, opponentProfile.elo_rating ?? 1500, didIWin ? 1 : 0);
+        const opponentNewElo = calculateElo(opponentProfile.elo_rating ?? 1500, userProfile.elo_rating ?? 1500, didIWin ? 0 : 1);
+        toast.success(`${t('YourNewElo')}: ${myNewElo} (${myNewElo - userProfile.elo_rating >= 0 ? '+' : ''}${myNewElo - userProfile.elo_rating})`);
+        await supabase.rpc('update_elo', { winner_id: didIWin ? userProfile.id : opponentProfile.id, loser_id: didIWin ? opponentProfile.id : userProfile.id, winner_new_elo: didIWin
+        ? myNewElo : opponentNewElo, loser_new_elo: didIWin ? opponentNewElo : myNewElo });
+        setUserProfile(p => p ? { ...p, elo_rating: myNewElo } : null);
+        setOpponentProfile(p => p ? { ...p, elo_rating: opponentNewElo } : null);
+    }
 }, [isSpectator, gameMode, history, userProfile, opponentProfile, playerRole, t, aiPlayer]);
 
 useEffect(() => { if (winner && gameState === 'post-game') handleGameEnd(winner); }, [winner, gameState, handleGameEnd]);
 
-useEffect(() => { const fetchUserProfile = async () => { if (!user) return; const { data, error } = await supabase.from('profiles').select('id, username, elo_rating, is_supporter, nickname_color, badge_color').eq('id', user.id).single(); if (error) console.error('Error fetching user profile:', error); else setUserProfile(data); }; fetchUserProfile(); }, [user]);
+useEffect(() => { const fetchUserProfile = async () => { if (!user) return; const { data, error } = await supabase.from('profiles').select('id, username, elo_rating, is_supporter, nickname_color, badge_color').eq('id', user.id).single(); if (error) console.error('Error fetching user profile:', error); else setUserProfile(data); };
+    fetchUserProfile(); }, [user]);
 
-useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js', { type: 'module' }); aiWorkerRef.current.onmessage = (e) => { const { row, col } = e.data; if (row !== -1 && col !== -1) handleStonePlacement(row, col); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
+useEffect(() => { aiWorkerRef.current = new Worker('/ai.worker.js', { type: 'module' }); aiWorkerRef.current.onmessage = (e) => { const { row, col } = e.data; if (row !== -1 &&
+    col !== -1) handleStonePlacement(row, col); }; return () => aiWorkerRef.current?.terminate(); }, [handleStonePlacement]);
 
-useEffect(() => { const fetchAiKnowledge = async () => { const { data, error } = await supabase.from('ai_knowledge').select('*'); if (error) console.error('Error fetching AI knowledge:', error); else { const knowledgeMap = new Map(data.map(item => [item.pattern_hash, { wins: item.wins, losses: item.losses }])); setAiKnowledge(knowledgeMap); } }; fetchAiKnowledge(); }, []);
+useEffect(() => { const fetchAiKnowledge = async () => { const { data, error } = await supabase.from('ai_knowledge').select('*'); if (error) console.error('Error fetching AI knowledge:', error); else { const knowledgeMap = new Map(data.map(item => [item.pattern_hash, { wins: item.wins, losses: item.losses }])); setAiKnowledge(knowledgeMap); } };
+    fetchAiKnowledge(); }, []);
 
-useEffect(() => { if (gameMode === 'pva' && currentPlayer === aiPlayer && !winner && gameState === 'playing') aiWorkerRef.current?.postMessage({ board, player: currentPlayer, knowledge: aiKnowledge }); }, [currentPlayer, gameMode, winner, board, aiKnowledge, aiPlayer, gameState]);
-useEffect(() => {
-  if (isReplaying && gameState === 'replay') {
-    replayIntervalRef.current = window.setInterval(() => {
-      setReplayMoveIndex(prev => {
-        if (prev < history.length - 1) {
-          return prev + 1;
-        }
-        setIsReplaying(false);
-        return prev;
-      });
-    }, 1000);
-  } else {
-    if (replayIntervalRef.current) clearInterval(replayIntervalRef.current);
-  }
-  return () => {
-    if (replayIntervalRef.current) clearInterval(replayIntervalRef.current);
-  };
+useEffect(() => { if (gameMode === 'pva' && currentPlayer === aiPlayer && !winner && gameState === 'playing') aiWorkerRef.current?.postMessage({ board, player: currentPlayer,
+    knowledge: aiKnowledge }); }, [currentPlayer, gameMode, winner, board, aiKnowledge, aiPlayer, gameState]);
+    useEffect(() => {
+    if (isReplaying && gameState === 'replay') {
+        replayIntervalRef.current = window.setInterval(() => {
+            setReplayMoveIndex(prev => {
+                if (prev < history.length - 1) {
+                    return prev + 1;
+                }
+                setIsReplaying(false);
+                return prev;
+            });
+        }, 1000);
+    } else {
+        if (replayIntervalRef.current) clearInterval(replayIntervalRef.current);
+    }
+    return () => {
+        if (replayIntervalRef.current) clearInterval(replayIntervalRef.current);
+    };
 }, [isReplaying, gameState, history.length]);
 
 useEffect(() => {
-  if (gameMode !== 'pvo' && !spectateRoomId) return;
-  if (!userProfileRef.current) return;
-  const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-  const socket = io(socketUrl);
-  socketRef.current = socket;
-  socket.on('connect', () => { if (user) socket.emit('authenticate', user.id); if (spectateRoomId) socket.emit('join-private-room', spectateRoomId, userProfileRef.current); });
-  socket.on('assign-role', (role) => setPlayerRole(role));
-  socket.on('game-start', ({ roomId }) => { setRoom(roomId); setGameState('playing'); toast.success(t('GameStarted')); if (userProfileRef.current) socket.emit('share-profile', { room: roomId, profile: userProfileRef.current }); });
-  socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast(t('NowSpectating')); });
-  socket.on('opponent-profile', (profile) => setOpponentProfile(profile));
-  socket.on('game-state-update', ({ move, newPlayer }) => { setBoard(prevBoard => { const newBoard = prevBoard.map(r => [...r]); newBoard[move.row][move.col] = newPlayer === 'black' ? 'white' : 'black'; return newBoard; }); setCurrentPlayer(newPlayer); });
-  socket.on('game-over-update', ({ winner: winnerName }) => { setWinner(winnerName); setGameState('post-game'); });
-  socket.on('new-game-starting', () => { toast.success(t('RematchStarting')); internalReset(); });
-  socket.on('room-full-or-invalid', () => toast.error(t('RoomFullOrInvalid')));
-  socket.on('opponent-disconnected', () => { toast.error(t('OpponentDisconnected')); resetGame(gameMode); });
-  const handleNewEmoticon = (data: EmoticonMessage) => { const newEmoticon = { ...data, id: Date.now() }; setEmoticons(current => [...current, newEmoticon]); setTimeout(() => { setEmoticons(current => current.filter(e => e.id !== newEmoticon.id)); }, 4000); };
-  socket.on('new-emoticon', handleNewEmoticon);
-  return () => { socket.off('new-emoticon', handleNewEmoticon); socket.disconnect(); };
+    if (gameMode !== 'pvo' && !spectateRoomId) return;
+    if (!userProfileRef.current) return;
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    const socket = io(socketUrl);
+    socketRef.current = socket;
+    socket.on('connect', () => { if (user) socket.emit('authenticate', user.id); if (spectateRoomId) socket.emit('join-private-room', spectateRoomId, userProfileRef.current); });
+    socket.on('assign-role', (role) => setPlayerRole(role));
+    socket.on('game-start', ({ roomId }) => { setRoom(roomId); setGameState('playing'); toast.success(t('GameStarted')); if (userProfileRef.current) socket.emit('share-profile', {
+        room: roomId, profile: userProfileRef.current }); });
+    socket.on('joined-as-spectator', () => { setIsSpectator(true); setGameState('playing'); toast(t('NowSpectating')); });
+    socket.on('opponent-profile', (profile) => setOpponentProfile(profile));
+    socket.on('game-state-update', ({ move, newPlayer }) => { setBoard(prevBoard => { const newBoard = prevBoard.map(r => [...r]); newBoard[move.row][move.col] = newPlayer ===
+        'black' ? 'white' : 'black'; return newBoard; }); setCurrentPlayer(newPlayer); });
+    socket.on('game-over-update', ({ winner: winnerName }) => { setWinner(winnerName); setGameState('post-game'); });
+    socket.on('new-game-starting', () => { toast.success(t('RematchStarting')); internalReset(); });
+    socket.on('room-full-or-invalid', () => toast.error(t('RoomFullOrInvalid')));
+    socket.on('opponent-disconnected', () => { toast.error(t('OpponentDisconnected')); resetGame(gameMode); });
+    const handleNewEmoticon = (data: EmoticonMessage) => { const newEmoticon = { ...data, id: Date.now() }; setEmoticons(current => [...current, newEmoticon]); setTimeout(() => {
+        setEmoticons(current => current.filter(e => e.id !== newEmoticon.id)); }, 4000); };
+    socket.on('new-emoticon', handleNewEmoticon);
+    return () => { socket.off('new-emoticon', handleNewEmoticon); socket.disconnect(); };
 }, [gameMode, user, spectateRoomId, t]);
 
 const resetGame = (mode: GameMode) => {
-  setGameMode(mode);
-  internalReset();
+    setGameMode(mode);
+    internalReset();
 };
-const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => { if (winner || isSpectator || (gameState !== 'playing' && !whatIfState)) return; if (gameMode === 'pva' && currentPlayer === aiPlayer) return; const rect = event.currentTarget.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const row = Math.round((y / rect.height) * (BOARD_SIZE - 1)); const col = Math.round((x / rect.width) * (BOARD_SIZE - 1)); if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) handleStonePlacement(row, col); };
+const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => { if (winner || isSpectator || (gameState !== 'playing' && !whatIfState)) return; if (gameMode === 'pva' &&
+    currentPlayer === aiPlayer) return; const rect = event.currentTarget.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const row =
+    Math.round((y / rect.height) * (BOARD_SIZE - 1)); const col = Math.round((x / rect.width) * (BOARD_SIZE - 1)); if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE)
+    handleStonePlacement(row, col); };
 const handleSendEmoticon = (emoticon: string) => { socketRef.current?.emit('send-emoticon', { room, emoticon }); };
-const handleWhatIf = () => { if (history.length === 0) { toast.error(t('NoMovesToAnalyze')); return; } if (replayGame?.game_type !== 'pva') { toast.error(t('WhatIfPvaOnly')); return; } setIsReplaying(false); const currentReplayBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)); for (let i = 0; i <= replayMoveIndex; i++) { currentReplayBoard[history[i].row][history[i].col] = history[i].player; } const nextPlayer = history[replayMoveIndex + 1]?.player || (history[replayMoveIndex].player === 'black' ? 'white' : 'black'); setWhatIfState({ board: currentReplayBoard, player: nextPlayer }); toast.success(t('WhatIfActivated')); };
+const handleWhatIf = () => { if (history.length === 0) { toast.error(t('NoMovesToAnalyze')); return; } if (replayGame?.game_type !== 'pva') { toast.error(t('WhatIfPvaOnly'));
+    return; } setIsReplaying(false); const currentReplayBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)); for (let i = 0; i <= replayMoveIndex; i++) {
+    currentReplayBoard[history[i].row][history[i].col] = history[i].player; } const nextPlayer = history[replayMoveIndex + 1]?.player || (history[replayMoveIndex].player === 'black' ?
+    'white' : 'black'); setWhatIfState({ board: currentReplayBoard, player: nextPlayer }); toast.success(t('WhatIfActivated')); };
 const exitWhatIf = () => setWhatIfState(null);
 const isWinningStone = (row: number, col: number) => {
-  return winningLine?.some(stone => stone.row === row && stone.col === col) || false;
+    return winningLine?.some(stone => stone.row === row && stone.col === col) || false;
 }
 const isLastMove = (row: number, col: number) => {
-  if (history.length === 0) return false;
-  const lastMove = history[history.length - 1];
-  return lastMove.row === row && lastMove.col === col;
+    if (history.length === 0) return false;
+    const lastMove = history[history.length - 1];
+    return lastMove.row === row && lastMove.col === col;
 }
 
 const replayBoard = gameState === 'replay' ? Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)) : null;
 if (replayBoard) {
-  for (let i = 0; i <= replayMoveIndex; i++) {
-    if(history[i]) replayBoard[history[i].row][history[i].col] = history[i].player;
-  }
+    for (let i = 0; i <= replayMoveIndex; i++) {
+        if(history[i]) replayBoard[history[i].row][history[i].col] = history[i].player;
+    }
 }
 
 const currentBoard = whatIfState ? whatIfState.board : (replayBoard || board);
@@ -393,101 +405,98 @@ const aiProfile: Profile | null = gameMode === 'pva' ? { id: 'ai', username: 'Go
 
 let winnerProfile: Profile | null = null;
 if (winner) {
-  if (gameMode === 'pvo') {
-    winnerProfile = winner === playerRole ? userProfile : opponentProfile;
-  } else if (gameMode === 'pva') {
-    winnerProfile = winner === aiPlayer ? aiProfile : userProfile;
-  } else { // pvp
-    const winnerName = winner.charAt(0).toUpperCase() + winner.slice(1);
-    winnerProfile = {
-      id: winner,
-      username: winnerName,
-      elo_rating: 0,
-      is_supporter: false,
-      nickname_color: null,
-      badge_color: null
-    };
-  }
+    if (gameMode === 'pvo') {
+        winnerProfile = winner === playerRole ? userProfile : opponentProfile;
+    } else if (gameMode === 'pva') {
+        winnerProfile = winner === aiPlayer ? aiProfile : userProfile;
+    } else { // pvp
+        const winnerName = winner.charAt(0).toUpperCase() + winner.slice(1);
+        winnerProfile = {
+            id: winner,
+            username: winnerName,
+            elo_rating: 0,
+            is_supporter: false,
+            nickname_color: null,
+            badge_color: null
+        };
+    }
 }
 
-const p1Profile = gameMode === 'pvo' ? (playerRole === 'black' ? userProfile : opponentProfile) : (gameMode === 'pva' ? (aiPlayer === 'white' ? userProfile : aiProfile) : userProfile);
-const p2Profile = gameMode === 'pvo' ? (playerRole === 'white' ? userProfile : opponentProfile) : (gameMode === 'pva' ? (aiPlayer === 'black' ? userProfile : aiProfile) : opponentProfile);
+const p1Profile = gameMode === 'pvo' ? (playerRole === 'black' ? userProfile : opponentProfile) : (gameMode === 'pva' ? (aiPlayer === 'white' ? userProfile : aiProfile) :
+    userProfile);
+const p2Profile = gameMode === 'pvo' ? (playerRole === 'white' ? userProfile : opponentProfile) : (gameMode === 'pva' ? (aiPlayer === 'black' ? userProfile : aiProfile) :
+    opponentProfile);
 
 const p1LastEmoticon = p1Profile ? emoticons.find(e => e.fromId === p1Profile.id) : undefined;
 const p2LastEmoticon = p2Profile ? emoticons.find(e => e.fromId === p2Profile.id) : undefined;
-
 return (
-  <div className="flex flex-col items-center w-full relative p-6">
-    <div className="absolute top-0 left-0">
-      <button onClick={onExit} className="text-gray-400 hover:text-gray-200 p-4 transition-colors">
-        {t('Back')}
-      </button>
-    </div>
-
-    {gameMode === 'pvo' && !room && !spectateRoomId && <OnlineMultiplayerMenu setGameMode={setGameMode} socketRef={socketRef} userProfile={userProfile} />}
-
-    <div className="flex w-full max-w-4xl justify-around items-center mb-8">
-      <PlayerDisplay profile={p1Profile} lastEmoticon={p1LastEmoticon} />
-      <span className="text-2xl font-bold text-white">VS</span>
-      <PlayerDisplay profile={p2Profile} lastEmoticon={p2LastEmoticon} />
-    </div>
-
-    {(gameMode !== 'pvo' || room) && (
-      <div onClick={handleBoardClick} className={`goboard p-2 shadow-lg relative rounded-md transition-opacity duration-500 ${gameState === 'post-game' ? 'opacity-50' : 'opacity-100'} ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIfState) ? 'cursor-not-allowed' : 'cursor-pointer'}`} style={{ width: '64vmin', height: '64vmin' }}>
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
-          {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%'}}></div>)}
-          {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`h-${i}`} className="goboard-line absolute" style={{top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%'}}></div>)}
+    <div className="flex flex-col items-center w-full relative p-6">
+        <div className="absolute top-0 left-0">
+            <button onClick={onExit} className="text-gray-400 hover:text-gray-200 p-4 transition-colors">
+                {t('Back')}
+            </button>
         </div>
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-          {currentBoard.map((row, r_idx) => row.map((cell, c_idx) => {
-            if (cell) {
-              const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.9)`;
-              const isWinStone = isWinningStone(r_idx, c_idx);
-              const isLast = isLastMove(r_idx, c_idx);
-              const stoneClasses = `absolute rounded-full stone-shadow ${isLast ? 'animate-place-stone' : ''} ${isWinStone ? 'animate-chroma-flow' : ''}`;
-              
-              const winningStoneIndex = winningLine?.findIndex(s => s.row === r_idx && s.col === c_idx);
 
-              return <div key={`${r_idx}-${c_idx}`} className={stoneClasses} style={{
-                top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
-                left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
-                width: stoneSize,
-                height: stoneSize,
-                backgroundColor: cell,
-                border: '1px solid gray',
-                animationDelay: (isWinStone && typeof winningStoneIndex === 'number' && winningStoneIndex > -1) ? `${winningStoneIndex * 100}ms` : undefined
-              }}></div>;
-            }
-            return null;
-          }))}
+        {gameMode === 'pvo' && !room && !spectateRoomId && <OnlineMultiplayerMenu setGameMode={setGameMode} socketRef={socketRef} userProfile={userProfile} />}
+
+        <div className="flex w-full max-w-4xl justify-around items-center mb-8">
+            <PlayerDisplay profile={p1Profile} lastEmoticon={p1LastEmoticon} />
+            <span className="text-2xl font-bold text-white">VS</span>
+            <PlayerDisplay profile={p2Profile} lastEmoticon={p2LastEmoticon} />
         </div>
-        {showGameEndModal && winnerProfile &&
-          <GameEndModal winnerProfile={winnerProfile} duration={gameDuration}>
-            <PostGameManager isPlayer={!isSpectator} isSpectator={isSpectator} onExit={onExit} gameMode={gameMode} room={room} socketRef={socketRef} />
-          </GameEndModal>
-        }
-      </div>
-    )}
 
-    {gameState === 'playing' && !isSpectator && !replayGame && (
-      <div className="mt-4">
-        <EmoticonPicker onSelect={handleSendEmoticon} />
-      </div>
-    )}
+        {(gameMode !== 'pvo' || room) && (
+            <div onClick={handleBoardClick} className={`goboard p-2 shadow-lg relative rounded-md transition-opacity duration-500 ${gameState === 'post-game' ? 'opacity-50' : 'opacity-100'} ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIfState) ? 'cursor-not-allowed' : 'cursor-pointer'}`} style={{ width: '64vmin', height: '64vmin' }}>
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
+                    {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%'}}></div>)}
+                    {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`h-${i}`} className="goboard-line absolute" style={{top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%'}}></div>)}
+                </div>
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                    {currentBoard.map((row, r_idx) => row.map((cell, c_idx) => {
+                        if (cell) {
+                            const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.9)`;
+                            const isWinStone = isWinningStone(r_idx, c_idx);
+                            const isLast = isLastMove(r_idx, c_idx);
+                            const stoneClasses = `absolute rounded-full stone-shadow ${isWinStone ? 'animate-chroma-shine' : ''} ${isWinStone && isLast ? 'animate-pulse-throb' : ''}`;
+                            return <div key={`${r_idx}-${c_idx}`} className={stoneClasses} style={{
+                                top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                width: stoneSize,
+                                height: stoneSize,
+                                backgroundColor: cell,
+                                border: '1px solid gray'
+                            }}></div>;
+                        }
+                        return null;
+                    }))}
+                </div>
+                {showGameEndModal && winnerProfile &&
+                    <GameEndModal winnerProfile={winnerProfile} duration={gameDuration}>
+                        <PostGameManager isPlayer={!isSpectator} isSpectator={isSpectator} onExit={onExit} gameMode={gameMode} room={room} socketRef={socketRef} />
+                    </GameEndModal>
+                }
+            </div>
+        )}
 
-    {gameState === 'replay' && (
-      <ReplayControls
-        moveCount={history.length}
-        currentMove={replayMoveIndex}
-        setCurrentMove={setReplayMoveIndex}
-        isPlaying={isReplaying}
-        setIsPlaying={setIsReplaying}
-        onWhatIf={replayGame?.game_type === 'pva' ? handleWhatIf : undefined}
-      />
-    )}
-    {whatIfState && <button onClick={exitWhatIf} className="mt-2 px-4 py-2 bg-red-500 text-white rounded">{t('ExitWhatIf')}</button>}
-  </div>
-  );
+        {gameState === 'playing' && !isSpectator && !replayGame && (
+            <div className="mt-4">
+                <EmoticonPicker onSelect={handleSendEmoticon} />
+            </div>
+        )}
+
+        {gameState === 'replay' && (
+            <ReplayControls
+                moveCount={history.length}
+                currentMove={replayMoveIndex}
+                setCurrentMove={setReplayMoveIndex}
+                isPlaying={isReplaying}
+                setIsPlaying={setIsReplaying}
+                onWhatIf={replayGame?.game_type === 'pva' ? handleWhatIf : undefined}
+            />
+        )}
+        {whatIfState && <button onClick={exitWhatIf} className="mt-2 px-4 py-2 bg-red-500 text-white rounded">{t('ExitWhatIf')}</button>}
+    </div>
+);
 };
 
 export default Board;
