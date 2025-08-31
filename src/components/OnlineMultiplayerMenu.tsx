@@ -38,7 +38,13 @@ const OnlineMultiplayerMenu: React.FC<OnlineMultiplayerMenuProps> = ({ setGameMo
             <button onClick={handlePublicMatch} className="px-4 py-2 bg-indigo-500 text-white rounded">{t('StartPublicMatch')}</button>
             <button onClick={handleCreatePrivate} className="px-4 py-2 bg-teal-500 text-white rounded">{t('CreatePrivateRoom')}</button>
             <button onClick={() => setMode('private')} className="px-4 py-2 bg-gray-500 text-white rounded">{t('JoinPrivateRoom')}</button>
-            <button onClick={() => setGameMode('pvp')} className="text-sm text-gray-300 hover:underline mt-2">{t('Cancel')}</button>
+            <button onClick={onCancel} className="text-sm text-gray-300 hover:underline mt-2">{t('Cancel')}</button>
+        </div>
+    );
+};
+
+export default OnlineMultiplayerMenu;
+n>
         </div>
     );
 };

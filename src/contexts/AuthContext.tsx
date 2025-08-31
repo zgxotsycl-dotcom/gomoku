@@ -42,29 +42,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
 
-      if (session?.user) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(profileData as Profile);
-      } else {
+        if (session?.user) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          setProfile(profileData as Profile);
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error("Error in onAuthStateChange:", error);
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
-    const timer = setTimeout(() => {
-        setLoading(false);
-    }, 3000);
-
     return () => {
-      clearTimeout(timer);
       authListener.subscription.unsubscribe();
     };
   }, []);

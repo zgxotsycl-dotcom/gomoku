@@ -48,6 +48,24 @@ export default function Home() {
   const [isBenefitsOpen, setBenefitsOpen] = useState(false);
   const [selectedGameMode, setSelectedGameMode] = useState<GameMode | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const interval = setInterval(() => {
+        setLoadingProgress(prev => {
+            if (prev >= 99) {
+                clearInterval(interval);
+                return 99;
+            }
+            return prev + 1;
+        });
+    }, 20);
+
+    return () => clearInterval(interval);
+  }, [loading]);
+  
 
   useEffect(() => {
     if (session) {
@@ -75,7 +93,14 @@ export default function Home() {
   if (loading) {
     return (
       <div className="relative min-h-screen main-background flex items-center justify-center">
-        <div className="text-white text-2xl">{t('Loading', 'Loading...')}</div>
+        <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center justify-center space-x-2">
+                <div className="w-8 h-8 bg-black rounded-full animate-bounce shadow-lg"></div>
+                <div className="w-8 h-8 bg-white rounded-full animate-bounce shadow-lg [animation-delay:0.2s]"></div>
+                <div className="w-8 h-8 bg-black rounded-full animate-bounce shadow-lg [animation-delay:0.4s]"></div>
+            </div>
+            <div className="text-white text-2xl font-mono w-24 text-center">{loadingProgress}%</div>
+        </div>
       </div>
     );
   }

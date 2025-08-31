@@ -55,10 +55,10 @@ const calculateElo = (playerRating: number, opponentRating: number, score: 1 | 0
   return Math.round(playerRating + K_FACTOR * (score - expectedScore));
 };
 
-const formatDuration = (seconds: number) => {
+const formatDuration = (seconds: number, t: (key: string, fallback: string) => string) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.round(seconds % 60);
-    return `${minutes}분 ${remainingSeconds}초`;
+    return `${minutes}${t('minute', '분')} ${remainingSeconds}${t('second', '초')}`;
 }
 // --- Sub-components ---
 const GameEndModal = ({ winnerProfile, duration, children }: { winnerProfile: Profile | null, duration: string, children: React.ReactNode }) => {
@@ -80,7 +80,7 @@ const GameEndModal = ({ winnerProfile, duration, children }: { winnerProfile: Pr
         <div className={`absolute inset-0 bg-black/40 flex items-center justify-center z-20 transition-opacity ease-in-out duration-[2000ms] ${visible ? 'opacity-100' : 'opacity-0'}`}>
             <div className={`bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl shadow-2xl p-8 text-center text-white transition-all ease-in-out duration-[2000ms] ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                 <h2 className="text-4xl font-bold text-yellow-400 mb-4">
-                    {t('WinnerMessage', { winner: winnerProfile.username })}
+                    {t('WinnerMessage', { winner: winnerProfile?.username })}
                 </h2>
                 <p className="text-lg text-gray-300 mb-6">{t('GameDuration', 'Game Duration: {{duration}}', { duration })}</p>
                 <div>{children}</div>
@@ -279,7 +279,7 @@ const handleStonePlacement = useCallback((row: number, col: number) => {
         setWinningLine(winInfo);
         if(startTime) {
             const durationInSeconds = (Date.now() - startTime) / 1000;
-            setGameDuration(formatDuration(durationInSeconds));
+            setGameDuration(formatDuration(durationInSeconds, t));
         }
         setGameState('post-game');
         

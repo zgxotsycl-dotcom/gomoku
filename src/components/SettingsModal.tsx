@@ -91,19 +91,25 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         updateData.badge_color = badgeColor;
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update(updateData)
-      .eq('id', user.id);
+      .eq('id', user.id)
+      .select()
+      .single();
 
     setLoading(false);
 
+    console.log('Supabase update response:', { data, error });
+
     if (error) {
       toast.error(t('FailedToSaveSettings') + ': ' + error.message);
-    } else {
+    } else if (data) {
       toast.success(t('SettingsSaved'));
-      updateProfile(updateData);
+      updateProfile(data);
       onClose();
+    } else {
+      toast.error(t('FailedToSaveSettings') + ': ' + 'Profile not found after update.');
     }
   };
 
