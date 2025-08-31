@@ -1,7 +1,4 @@
-'use client';
-
 import React from 'react';
-import PayPalButton from '@/components/PayPalButton';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabaseClient';
 import { FaStar, FaPalette, FaHistory, FaBrain } from 'react-icons/fa';
@@ -54,20 +51,15 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
               {t('LoginToSupport')}
             </button>
           ) : (
-            <div className="flex flex-col sm:flex-row gap-4 w-full">
-              <div className="flex-1">
-                <PayPalButton onPaymentSuccess={onClose} />
-              </div>
-              <div className="flex-1">
-                <a
-                  href="https://3614751670147.gumroad.com/l/tkdjxl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center px-6 py-2 bg-pink-500 text-white font-bold rounded-lg hover:bg-pink-600 transition-colors"
-                >
-                  Card / Etc. (Gumroad)
-                </a>
-              </div>
+            <div className="w-full">
+              <a
+                href="https://3614751670147.gumroad.com/l/tkdjxl"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full max-w-xs mx-auto px-8 py-4 bg-pink-500 text-white font-bold rounded-lg hover:bg-pink-600 transition-colors text-xl"
+              >
+                {t('Pay with Card (Gumroad)')}
+              </a>
             </div>
           )}
           <button onClick={onClose} className="mt-4 text-sm text-gray-400 hover:underline">{t('MaybeLater')}</button>

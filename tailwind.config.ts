@@ -30,7 +30,7 @@ const config: Config = {
       animation: {
         'chroma-shine': 'chroma-shine 2s linear infinite',
         'pulse-throb': 'pulse-throb 1.5s ease-in-out infinite',
-        'slime-in': 'slime-in 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
+        'slime-in': 'slime-in 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
       },
     },
   },

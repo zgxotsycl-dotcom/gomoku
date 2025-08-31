@@ -63,11 +63,22 @@ const formatDuration = (seconds: number) => {
 // --- Sub-components ---
 const GameEndModal = ({ winnerProfile, duration, children }: { winnerProfile: Profile | null, duration: string, children: React.ReactNode }) => {
     const { t } = useTranslation();
+    const [visible, setVisible] = useState(false);
+
+    useEffect(() => {
+        if (winnerProfile) {
+            const timer = setTimeout(() => setVisible(true), 100);
+            return () => clearTimeout(timer);
+        } else {
+            setVisible(false);
+        }
+    }, [winnerProfile]);
+
     if (!winnerProfile) return null;
 
     return (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
-            <div className="animate-fade-in-slow bg-gray-800/50 backdrop-blur-lg border border-gray-700 rounded-xl shadow-2xl p-8 text-center text-white">
+        <div className={`absolute inset-0 bg-black/40 flex items-center justify-center z-20 transition-opacity ease-in-out duration-[2000ms] ${visible ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl shadow-2xl p-8 text-center text-white transition-all ease-in-out duration-[2000ms] ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                 <h2 className="text-4xl font-bold text-yellow-400 mb-4">
                     {t('WinnerMessage', { winner: winnerProfile.username })}
                 </h2>
@@ -212,7 +223,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     const [winningLine, setWinningLine] = useState<{row: number, col: number}[] | null>(null);
     const [startTime, setStartTime] = useState<number | null>(null);
     const [gameDuration, setGameDuration] = useState("");
-    const [showGameEndModal, setShowGameEndModal] = useState(false);
+    
 
     const { user } = useAuth();
     const socketRef = useRef<Socket | null>(null);
@@ -228,7 +239,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     setGameState('playing');
     setWhatIfState(null);
     setWinningLine(null);
-    setShowGameEndModal(false);
+    
     setStartTime(Date.now());
 };
 
@@ -271,7 +282,7 @@ const handleStonePlacement = useCallback((row: number, col: number) => {
             setGameDuration(formatDuration(durationInSeconds));
         }
         setGameState('post-game');
-        setTimeout(() => setShowGameEndModal(true), 1000);
+        
         if (gameMode === 'pvo') socketRef.current?.emit('game-over', { roomId: room, winner: currentPlayer });
     } else {
         const newPlayer = currentPlayer === 'black' ? 'white' : 'black';
@@ -373,10 +384,31 @@ const resetGame = (mode: GameMode) => {
     setGameMode(mode);
     internalReset();
 };
-const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => { if (winner || isSpectator || (gameState !== 'playing' && !whatIfState)) return; if (gameMode === 'pva' &&
-    currentPlayer === aiPlayer) return; const rect = event.currentTarget.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; const row =
-    Math.round((y / rect.height) * (BOARD_SIZE - 1)); const col = Math.round((x / rect.width) * (BOARD_SIZE - 1)); if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE)
-    handleStonePlacement(row, col); };
+const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (winner || isSpectator || (gameState !== 'playing' && !whatIfState)) return;
+    if (gameMode === 'pva' && currentPlayer === aiPlayer) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const gridWidth = event.currentTarget.clientWidth;
+    const gridHeight = event.currentTarget.clientHeight;
+    const style = window.getComputedStyle(event.currentTarget);
+    const paddingLeft = parseFloat(style.paddingLeft);
+    const paddingTop = parseFloat(style.paddingTop);
+
+    const x = event.clientX - rect.left - paddingLeft;
+    const y = event.clientY - rect.top - paddingTop;
+
+    if (x < 0 || x > gridWidth || y < 0 || y > gridHeight) {
+        return;
+    }
+
+    const row = Math.round((y / gridHeight) * (BOARD_SIZE - 1));
+    const col = Math.round((x / gridWidth) * (BOARD_SIZE - 1));
+
+    if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
+        handleStonePlacement(row, col);
+    }
+};
 const handleSendEmoticon = (emoticon: string) => { socketRef.current?.emit('send-emoticon', { room, emoticon }); };
 const handleWhatIf = () => { if (history.length === 0) { toast.error(t('NoMovesToAnalyze')); return; } if (replayGame?.game_type !== 'pva') { toast.error(t('WhatIfPvaOnly'));
     return; } setIsReplaying(false); const currentReplayBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)); for (let i = 0; i <= replayMoveIndex; i++) {
@@ -446,31 +478,43 @@ return (
         </div>
 
         {(gameMode !== 'pvo' || room) && (
-            <div onClick={handleBoardClick} className={`goboard p-2 shadow-lg relative rounded-md transition-opacity duration-500 ${gameState === 'post-game' ? 'opacity-50' : 'opacity-100'} ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIfState) ? 'cursor-not-allowed' : 'cursor-pointer'}`} style={{ width: '64vmin', height: '64vmin' }}>
-                <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
-                    {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%'}}></div>)}
-                    {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`h-${i}`} className="goboard-line absolute" style={{top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%'}}></div>)}
+            <div className="relative" style={{ width: '64vmin', height: '64vmin' }}>
+                {/* The frame with a wooden color */}
+                <div className="p-4 bg-[#d2b48c] rounded-md shadow-lg w-full h-full">
+                    {/* The interactive grid area */}
+                    <div 
+                        onClick={handleBoardClick} 
+                        className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIfState) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                        {/* Lines are drawn on a transparent overlay inside the grid */}
+                        <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
+                            {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%'}}></div>)}
+                            {Array.from({length: BOARD_SIZE}).map((_, i) => <div key={`h-${i}`} className="goboard-line absolute" style={{top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%'}}></div>)}
+                        </div>
+                        {/* Stones are drawn on another transparent overlay inside the grid */}
+                        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                            {currentBoard.map((row, r_idx) => row.map((cell, c_idx) => {
+                                if (cell) {
+                                    const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.9)`;
+                                    const isWinStone = isWinningStone(r_idx, c_idx);
+                                    const isLast = isLastMove(r_idx, c_idx);
+                                    const stoneClasses = `absolute rounded-full stone-shadow ${isWinStone ? 'animate-chroma-shine' : ''} ${isWinStone && isLast ? 'animate-pulse-throb' : ''} ${!isWinStone && isLast ? 'animate-slime-in' : ''}`;
+                                    return <div key={`${r_idx}-${c_idx}`} className={stoneClasses} style={{
+                                        top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                        left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                        width: stoneSize,
+                                        height: stoneSize,
+                                        backgroundColor: cell,
+                                        border: '1px solid gray'
+                                    }}></div>;
+                                }
+                                return null;
+                            }))}
+                        </div>
+                    </div>
                 </div>
-                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                    {currentBoard.map((row, r_idx) => row.map((cell, c_idx) => {
-                        if (cell) {
-                            const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.9)`;
-                            const isWinStone = isWinningStone(r_idx, c_idx);
-                            const isLast = isLastMove(r_idx, c_idx);
-                            const stoneClasses = `absolute rounded-full stone-shadow ${isWinStone ? 'animate-chroma-shine' : ''} ${isWinStone && isLast ? 'animate-pulse-throb' : ''}`;
-                            return <div key={`${r_idx}-${c_idx}`} className={stoneClasses} style={{
-                                top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
-                                left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
-                                width: stoneSize,
-                                height: stoneSize,
-                                backgroundColor: cell,
-                                border: '1px solid gray'
-                            }}></div>;
-                        }
-                        return null;
-                    }))}
-                </div>
-                {showGameEndModal && winnerProfile &&
+                {/* The overlay is now a sibling to the frame, and will cover the whole 64vmin area */}
+                {winnerProfile &&
                     <GameEndModal winnerProfile={winnerProfile} duration={gameDuration}>
                         <PostGameManager isPlayer={!isSpectator} isSpectator={isSpectator} onExit={onExit} gameMode={gameMode} room={room} socketRef={socketRef} />
                     </GameEndModal>

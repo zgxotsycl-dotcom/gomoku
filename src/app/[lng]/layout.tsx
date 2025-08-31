@@ -28,16 +28,11 @@ export default function RootLayout({
   children: React.ReactNode
   params: { lng: string }
 }) {
-  console.log("PayPal Client ID Used:", process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID);
   return (
     <html lang={lng}>
       <body className={inter.className}>
         <I18nProvider lng={lng}>
           <AuthProvider>
-            <Script 
-              src={`https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD&intent=capture`}
-              strategy="beforeInteractive"
-            />
             {children}
             <Toaster />
           </AuthProvider>
