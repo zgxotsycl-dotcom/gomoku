@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { FaPaintBrush, FaStar, FaUser } from 'react-icons/fa'; // Import FaUser
+import { FaPaintBrush, FaStar, FaUser, FaLock } from 'react-icons/fa'; // Import FaUser
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -31,7 +31,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         const fetchProfile = async () => {
           const { data, error } = await supabase
             .from('profiles')
-            .select('username, nickname_color, badge_color')
+            .select('username, nickname_color, badge_color, is_supporter')
             .eq('id', user.id)
             .single();
           
@@ -49,15 +49,25 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     if (!user) return;
     setLoading(true);
     
-    // Add username to the update object
+    const updateData: {
+        username: string;
+        nickname_color?: string;
+        badge_color?: string;
+    } = {
+        username: username,
+    };
+
+    if (profile?.is_supporter) {
+        updateData.nickname_color = nicknameColor;
+        updateData.badge_color = badgeColor;
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({ 
-        username: username,
-        nickname_color: nicknameColor, 
-        badge_color: badgeColor 
-      })
+      .update(updateData)
       .eq('id', user.id);
+
+    setLoading(false);
 
     if (error) {
       toast.error(t('FailedToSaveSettings') + ': ' + error.message);
@@ -67,7 +77,6 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       // Reload the page to reflect the updated profile information
       window.location.reload();
     }
-    setLoading(false);
   };
 
   if (!isOpen) return null;
@@ -91,23 +100,25 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
             />
           </div>
           {/* Nickname Color Picker */}
-          <div>
+          <div className={!profile?.is_supporter ? 'locked-feature' : ''}>
             <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
               <FaPaintBrush /> {t('NicknameColor')}
+              {!profile?.is_supporter && <FaLock className="lock-icon" />}
             </label>
             <div className="flex items-center gap-2">
-              <input type="color" value={nicknameColor} onChange={(e) => setNicknameColor(e.target.value)} className="w-10 h-10 rounded border-gray-600"/>
-              <input type="text" value={nicknameColor} onChange={(e) => setNicknameColor(e.target.value)} className="w-full px-2 py-1 rounded bg-gray-700 text-white border border-gray-600"/>
+              <input type="color" value={nicknameColor} onChange={(e) => setNicknameColor(e.target.value)} className="w-10 h-10 rounded border-gray-600" disabled={!profile?.is_supporter}/>
+              <input type="text" value={nicknameColor} onChange={(e) => setNicknameColor(e.target.value)} className="w-full px-2 py-1 rounded bg-gray-700 text-white border border-gray-600" disabled={!profile?.is_supporter}/>
             </div>
           </div>
           {/* Badge Color Picker */}
-          <div>
+          <div className={!profile?.is_supporter ? 'locked-feature' : ''}>
             <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
               <FaStar /> {t('PatronBadgeColor')}
+              {!profile?.is_supporter && <FaLock className="lock-icon" />}
             </label>
             <div className="flex items-center gap-2">
-                <input type="color" value={badgeColor} onChange={(e) => setBadgeColor(e.target.value)} className="w-10 h-10 rounded border-gray-600"/>
-                <input type="text" value={badgeColor} onChange={(e) => setBadgeColor(e.target.value)} className="w-full px-2 py-1 rounded bg-gray-700 text-white border border-gray-600"/>
+                <input type="color" value={badgeColor} onChange={(e) => setBadgeColor(e.target.value)} className="w-10 h-10 rounded border-gray-600" disabled={!profile?.is_supporter}/>
+                <input type="text" value={badgeColor} onChange={(e) => setBadgeColor(e.target.value)} className="w-full px-2 py-1 rounded bg-gray-700 text-white border border-gray-600" disabled={!profile?.is_supporter}/>
             </div>
           </div>
         </div>

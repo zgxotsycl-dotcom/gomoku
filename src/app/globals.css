@@ -55,3 +55,17 @@
 .stone-shadow {
     box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
 }
+
+@keyframes wobble {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(-5deg); }
+  30% { transform: rotate(3deg); }
+  45% { transform: rotate(-3deg); }
+  60% { transform: rotate(2deg); }
+  75% { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.locked-feature:hover .lock-icon {
+  animation: wobble 0.8s ease-in-out;
+}

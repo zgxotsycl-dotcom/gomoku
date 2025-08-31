@@ -20,26 +20,25 @@ const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () =>
     <div className="absolute top-4 right-4 text-white flex items-center gap-4 z-10">
       <LanguageSwitcher />
       <span>{profile?.username || user?.email}</span>
-      {profile?.is_supporter && (
+      {user && !user.is_anonymous && (
         <>
-          <Link href="/replays" className="px-3 py-1 bg-indigo-600 rounded hover:bg-indigo-700">
-            {t('MyReplays')}
-          </Link>
           <button onClick={onOpenSettings} className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700">{t('Settings')}</button>
+          {profile?.is_supporter ? (
+            <Link href="/replays" className="px-3 py-1 bg-indigo-600 rounded hover:bg-indigo-700">
+              {t('MyReplays')}
+            </Link>
+          ) : (
+            <button onClick={onOpenBenefits} className="px-3 py-1 bg-yellow-500 text-black rounded hover:bg-yellow-600">
+              {t('BecomeASupporter')}
+            </button>
+          )}
+          <button onClick={() => supabase.auth.signOut()} className="px-3 py-1 bg-red-600 rounded hover:bg-red-700">
+            {t('Logout')}
+          </button>
         </>
       )}
-      {user && !user.is_anonymous && !profile?.is_supporter && (
-        <button onClick={onOpenBenefits} className="px-3 py-1 bg-yellow-500 text-black rounded hover:bg-yellow-600">
-          {t('BecomeASupporter')}
-        </button>
-      )}
-      {!user?.is_anonymous && (
-        <button onClick={() => supabase.auth.signOut()} className="px-3 py-1 bg-red-600 rounded hover:bg-red-700">
-            {t('Logout')}
-        </button>
-      )}
     </div>
-  )
+  );
 }
 
 export default function Home() {
