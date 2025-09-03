@@ -3,15 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
-
-interface Profile {
-  id: string;
-  username: string;
-  elo_rating: number;
-  is_supporter: boolean;
-  nickname_color: string | null;
-  badge_color: string | null;
-}
+import type { Profile } from '@/types';
 
 interface AuthContextType {
   session: Session | null;

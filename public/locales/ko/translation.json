@@ -77,5 +77,6 @@
   "Tournaments": "토너먼트",
   "error_username_max_length": "닉네임은 최대 12자까지 가능합니다.",
   "error_username_min_length": "닉네임은 최소 3자 이상이어야 합니다.",
+  "coming_soon": "준비 중입니다!",
   "BannerColor": "배너 색상"
 }

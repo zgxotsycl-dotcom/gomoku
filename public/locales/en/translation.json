@@ -77,5 +77,6 @@
   "Tournaments": "Tournaments",
   "error_username_max_length": "Nickname must be at most 12 characters.",
   "error_username_min_length": "Nickname must be at least 3 characters.",
+  "coming_soon": "Coming soon!",
   "BannerColor": "Banner Color"
 }

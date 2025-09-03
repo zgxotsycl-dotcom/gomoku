@@ -77,5 +77,6 @@
   "Tournaments": "トーナメント",
   "error_username_max_length": "ニックネームは最大12文字までです。",
   "error_username_min_length": "ニックネームは3文字以上である必要があります。",
+  "coming_soon": "準備中です！",
   "BannerColor": "バナーの色"
 }

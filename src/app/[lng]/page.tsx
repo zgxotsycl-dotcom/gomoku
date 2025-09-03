@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Board from '@/components/Board';
 import type { GameMode } from '@/types';
@@ -226,7 +226,7 @@ btn-hover-scale">
             {profile?.is_supporter && (
                 <div className="mt-4">
                     <button 
-                        onClick={() => toast.info('Tournaments are coming soon!')} 
+                        onClick={() => toast(t('coming_soon'))} 
                         className="px-8 py-4 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-xl btn-hover-scale"
                     >
                         {t('Tournaments')}
