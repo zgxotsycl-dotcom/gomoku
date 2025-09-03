@@ -127,7 +127,7 @@ const Fireworks = () => {
             const x = width * 0.2 + Math.random() * (width * 0.6);
             const y = height * 0.2 + Math.random() * (height * 0.6);
 
-            const fireworkTypes = ['peony', 'peony', 'crackle'];
+            const fireworkTypes = ['peony', 'peony', 'crackle'] as const;
             const type = fireworkTypes[Math.floor(Math.random() * fireworkTypes.length)];
 
             const newFirework = {
