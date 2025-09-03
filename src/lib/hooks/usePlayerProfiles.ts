@@ -11,7 +11,8 @@ export const usePlayerProfiles = (game: any, players: any) => {
         elo_rating: 1500,
         is_supporter: true,
         nickname_color: null,
-        badge_color: null
+        badge_color: null,
+        banner_color: null
     }), []);
 
     const profiles = useMemo(() => {
