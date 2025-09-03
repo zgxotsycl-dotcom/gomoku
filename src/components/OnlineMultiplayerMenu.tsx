@@ -70,3 +70,5 @@ const OnlineMultiplayerMenu = ({ onBack, setGameMode, socketRef, userProfile, on
         </div>
     );
 };
+
+export default OnlineMultiplayerMenu;
