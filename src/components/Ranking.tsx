@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
+import type { Profile } from '../types';
 import PatronBadge from './PatronBadge';
 
 const Ranking = () => {
