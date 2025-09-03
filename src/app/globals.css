@@ -1,0 +1,370 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark Leather Texture Background */
+.main-background {
+  background-color: #1c1c1c; /* Dark base */
+  background-image: 
+    linear-gradient(335deg, rgba(255,255,255,0.03) 2px, transparent 2px),
+    linear-gradient(155deg, rgba(255,255,255,0.03) 2px, transparent 2px),
+    linear-gradient(335deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(155deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 8px 8px, 8px 8px, 4px 4px, 4px 4px;
+  background-position: 0px 0px, 4px 4px, 2px 2px, 6px 6px;
+}
+
+/* Chroma Nebula Animation Background */
+@keyframes flow-nebula {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.nebula-background {
+  background: linear-gradient(270deg, #ff00ff, #00ffff, #ffff00, #00ff00, #ff00ff);
+  background-size: 1000% 1000%;
+  animation: flow-nebula 60s ease infinite;
+  opacity: 0.15; /* Subtle effect */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1; /* Place it behind the main content */
+}
+
+
+/* Board and Stone Design (from previous steps) */
+.goboard {
+    background: linear-gradient(145deg, #d2b48c, #b89a74);
+    box-shadow: 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+    border: 2px solid #4a3f35;
+}
+
+.goboard-line {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.stone-shadow {
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+}
+
+@keyframes wobble {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(-5deg); }
+  30% { transform: rotate(3deg); }
+  45% { transform: rotate(-3deg); }
+  60% { transform: rotate(2deg); }
+  75% { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.locked-feature:hover .lock-icon {
+  animation: wobble 0.8s ease-in-out;
+}
+
+@keyframes stone-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  80% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-stone-pop {
+  animation: stone-pop 0.3s ease-out;
+}
+
+/* Space Background for PVA Mode */
+.space-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  z-index: -1;
+}
+
+@keyframes move-stars {
+  from { transform: translateY(0px); }
+  to   { transform: translateY(-2000px); }
+}
+
+.stars, .stars2, .stars3 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2000px; /* Taller than the view to allow for animation */
+  background-repeat: repeat;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.stars {
+  background-image: radial-gradient(1px 1px at 20px 30px, #eee, rgba(0,0,0,0)),
+                    radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1px 1px at 90px 40px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1.5px 1.5px at 130px 80px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1.5px 1.5px at 160px 120px, #ddd, rgba(0,0,0,0));
+  background-size: 200px 200px;
+  animation-name: move-stars;
+  animation-duration: 200s;
+}
+
+.stars2 {
+  background-image: radial-gradient(1px 1px at 50px 20px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1px 1px at 100px 90px, #ddd, rgba(0,0,0,0)),
+                    radial-gradient(1.5px 1.5px at 150px 60px, #fff, rgba(0,0,0,0));
+  background-size: 300px 300px;
+  animation-name: move-stars;
+  animation-duration: 150s;
+}
+
+.stars3 {
+  background-image: radial-gradient(1.5px 1.5px at 80px 100px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1.5px 1.5px at 180px 40px, #ddd, rgba(0,0,0,0));
+  background-size: 400px 400px;
+  animation-name: move-stars;
+  animation-duration: 100s;
+}
+
+.nebula-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    mix-blend-mode: screen;
+    opacity: 0.5;
+}
+
+@keyframes rotate-nebula {
+    from { transform: rotate(0deg) scale(1.5); }
+    to { transform: rotate(360deg) scale(1.5); }
+}
+
+.nebula {
+    position: absolute;
+    border-radius: 50%;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+    animation-name: rotate-nebula;
+    opacity: 0.5;
+}
+
+.nebula-1 {
+    width: 400px;
+    height: 400px;
+    top: 20%;
+    left: 10%;
+    background: radial-gradient(closest-side, #9370DB, transparent); /* MediumPurple */
+    animation-duration: 50s;
+}
+
+.nebula-2 {
+    width: 300px;
+    height: 300px;
+    top: 50%;
+    left: 60%;
+    background: radial-gradient(closest-side, #4682B4, transparent); /* SteelBlue */
+    animation-duration: 40s;
+    animation-direction: reverse;
+}
+
+.nebula-3 {
+    width: 500px;
+    height: 500px;
+    top: 30%;
+    left: 40%;
+    background: radial-gradient(closest-side, #C71585, transparent); /* MediumVioletRed */
+    animation-duration: 60s;
+}
+
+@keyframes pop-and-fade {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.05) translateY(0);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-15px);
+  }
+}
+
+.emoticon-animation {
+  animation: pop-and-fade 4s ease-in-out forwards;
+}
+
+/* Button Hover Effect */
+.btn-hover-scale {
+  transition: transform 0.2s ease-in-out;
+  will-change: transform; /* Optimization for browsers */
+}
+
+.btn-hover-scale:hover {
+  transform: scale(1.05);
+}
+
+@keyframes dynamic-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(10px) translateX(-20px);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1) translateY(-5px) translateX(5px);
+  }
+  60% {
+    transform: scale(1) translateY(0) translateX(0);
+  }
+  85% {
+    opacity: 1;
+    transform: scale(1) translateY(0) translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-30px);
+  }
+}
+
+@keyframes hyper-dynamic-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-45deg) translateY(20px);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.3) rotate(15deg) translateY(-10px);
+  }
+  50% {
+    transform: scale(0.9) rotate(-10deg) translateY(0);
+  }
+  70% {
+    transform: scale(1.1) rotate(5deg) translateY(-5px);
+  }
+  85% {
+    transform: scale(1) rotate(0deg) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) rotate(45deg) translateY(-30px);
+  }
+}
+
+@keyframes super-energetic-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.1) rotate(-90deg) translateY(50px);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.5) rotate(20deg) translateY(-20px);
+  }
+  40% {
+    transform: scale(0.8) rotate(-20deg) translateY(10px);
+  }
+  60% {
+    transform: scale(1.2) rotate(10deg) translateY(-10px);
+  }
+  80% {
+    transform: scale(1) rotate(0deg) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) translateY(20px) rotate(90deg);
+  }
+}
+
+.emoticon-final-animation {
+  animation: super-energetic-pop 2.8s ease-in-out forwards;
+}
+
+@keyframes flashing-red {
+  0%, 100% { background-color: rgba(255, 0, 0, 0.3); }
+  50% { background-color: rgba(255, 0, 0, 0.1); }
+}
+
+.forbidden-move-marker {
+  animation: flashing-red 1.5s infinite;
+}
+
+
+.emoticon-hyper-animation {
+  animation: hyper-dynamic-pop 2.5s ease-in-out forwards;
+}
+
+.emoticon-display-animation {
+  animation: dynamic-pop 3s ease-in-out forwards;
+}
+
+@keyframes red-shadow-pulse {
+  0% {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.4), 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 0, 0, 0.8), 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.4), 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+  }
+}
+
+.animate-red-shadow {
+  animation: red-shadow-pulse 2s infinite;
+}
+
+@keyframes slime-in {
+    from {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-slime-in {
+    animation: slime-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes chroma-shine {
+  0% {
+    box-shadow: 0 0 10px 2px #ff00ff, 2px 2px 5px rgba(0,0,0,0.5);
+  }
+  25% {
+    box-shadow: 0 0 10px 2px #00ffff, 2px 2px 5px rgba(0,0,0,0.5);
+  }
+  50% {
+    box-shadow: 0 0 10px 2px #ffff00, 2px 2px 5px rgba(0,0,0,0.5);
+  }
+  75% {
+    box-shadow: 0 0 10px 2px #00ff00, 2px 2px 5px rgba(0,0,0,0.5);
+  }
+  100% {
+    box-shadow: 0 0 10px 2px #ff00ff, 2px 2px 5px rgba(0,0,0,0.5);
+  }
+}
+
+.animate-chroma-shine {
+  animation: chroma-shine 2s linear infinite;
+}
+
+
+

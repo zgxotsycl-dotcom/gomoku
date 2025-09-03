@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.main-background {
+  background-color: #1a202c;
+  background-image: radial-gradient(circle at 1px 1px, #374151 1px, transparent 0);
+  background-size: 2rem 2rem;
+}
+
+.goboard {
+    background: linear-gradient(145deg, #d2b48c, #b89a74);
+    box-shadow: 10px 10px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.2);
+    border: 2px solid #4a3f35;
+}
+
+.goboard-line {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.stone-shadow {
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 1s ease-out forwards;
+}
+
+@keyframes emoticon-animation {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.5);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.2);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.2) rotate(15deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.5);
+  }
+}
+
+.emoticon-animation {
+  animation: emoticon-animation 3s ease-in-out forwards;
+}
+
+@keyframes firework-explode {
+  0% { transform: scale(0); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.firework {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: firework-explode 1.2s ease-out forwards;
+  box-shadow: 0 0 5px, 0 0 10px, 0 0 15px;
+}
+
+.space-background {
+  background-color: #000;
+  overflow: hidden;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
+@keyframes move-stars {
+  from { transform: translateY(0px); }
+  to { transform: translateY(-2000px); }
+}
+
+.stars, .stars2, .stars3 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 200%;
+  background-repeat: repeat;
+}
+
+.stars {
+  background-image: radial-gradient(circle 1px at 20px 30px, #fff, transparent);
+  background-size: 50px 50px;
+  animation: move-stars 150s linear infinite;
+}
+
+.stars2 {
+  background-image: radial-gradient(circle 2px at 100px 100px, #fff, transparent);
+  background-size: 100px 100px;
+  animation: move-stars 100s linear infinite;
+}
+
+.stars3 {
+  background-image: radial-gradient(circle 3px at 150px 150px, #fff, transparent);
+  background-size: 150px 150px;
+  animation: move-stars 50s linear infinite;
+}
+
+@keyframes rotate-nebula {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.nebula-container {
+    position: absolute;
+    width: 150%;
+    height: 150%;
+    top: -25%;
+    left: -25%;
+    animation: rotate-nebula 120s linear infinite;
+}
+
+.nebula {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  filter: blur(30px);
+  opacity: 0.5;
+}
+
+.nebula-1 {
+  background: radial-gradient(ellipse at 30% 30%, #ff00ff, transparent 40%);
+  animation: pulse 10s ease-in-out infinite alternate;
+}
+
+.nebula-2 {
+  background: radial-gradient(ellipse at 70% 60%, #00ffff, transparent 35%);
+  animation: pulse 12s ease-in-out infinite alternate;
+  animation-delay: -6s;
+}
+
+.nebula-3 {
+  background: radial-gradient(ellipse at 40% 80%, #ffff00, transparent 30%);
+  animation: pulse 15s ease-in-out infinite alternate;
+  animation-delay: -10s;
+}
+
+@keyframes pulse {
+  from { opacity: 0.4; transform: scale(1); }
+  to { opacity: 0.8; transform: scale(1.2); }
+}
