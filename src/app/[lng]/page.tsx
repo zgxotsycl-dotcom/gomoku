@@ -13,7 +13,7 @@ import RoomCodeModal from '@/components/RoomCodeModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useTranslation } from 'react-i18next';
-import Script from 'next/script';
+
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
@@ -50,17 +50,38 @@ const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () =>
 const AdBanner = () => {
   const { t } = useTranslation();
 
+  useEffect(() => {
+    // This function runs when the component is mounted (user is on the menu)
+    const script = document.createElement('script');
+    script.id = 'monetag-vignette-script';
+    script.src = 'https://gizokraijaw.net/vignette.min.js';
+    script.dataset.zone = '9825317';
+    script.async = true;
+    
+    document.head.appendChild(script);
+
+    // This is the cleanup function
+    return () => {
+      // This runs when the component is unmounted (game starts)
+      const existingScript = document.getElementById('monetag-vignette-script');
+      if (existingScript) {
+        existingScript.remove();
+      }
+      
+      // Also, try to find and remove the ad container that Monetag creates.
+      // We have to guess the selector. Let's try a few common ones.
+      const adContainer = document.querySelector('div[class*="vignette-banner"]');
+      if (adContainer) {
+        adContainer.remove();
+      }
+    };
+  }, []); // The empty dependency array means this effect runs only once on mount and cleanup on unmount.
+
   return (
     <div className="w-full max-w-md mx-auto my-4 text-center text-white">
       <div style={{ minHeight: '100px', border: '1px dashed #555', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span>{t('Advertisement', 'Advertisement')}</span>
       </div>
-      <Script
-        id="monetag-vignette-script"
-        strategy="lazyOnload"
-        src="https://gizokraijaw.net/vignette.min.js"
-        data-zone="9825317"
-      />
     </div>
   );
 };
