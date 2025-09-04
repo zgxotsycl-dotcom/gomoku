@@ -52,7 +52,7 @@ const AdBanner = () => {
 
   // This is a placeholder for your actual ad script.
   // The script below will just print a message to the browser's console.
-  const adScript = `<script>(s=>{s.dataset.zone=9821575,s.src='https://vemtoutcheeg.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>;`;
+  const adScript = `<script>(function(s){s.dataset.zone='9823576',s.src='https://vemtoutcheeg.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>;`;
 
   return (
     <div className="w-full max-w-md mx-auto my-4 text-center text-white">
