@@ -50,18 +50,17 @@ const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () =>
 const AdBanner = () => {
   const { t } = useTranslation();
 
-  // This is a placeholder for your actual ad script.
-  // The script below will just print a message to the browser's console.
-  const adScript = `<script>(function(s){s.dataset.zone='9825317',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>;`;
-
   return (
     <div className="w-full max-w-md mx-auto my-4 text-center text-white">
       <div style={{ minHeight: '100px', border: '1px dashed #555', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span>{t('Advertisement', 'Advertisement')}</span>
       </div>
-      <Script id="ad-banner-script" strategy="lazyOnload">
-        {adScript}
-      </Script>
+      <Script
+        id="monetag-vignette-script"
+        strategy="lazyOnload"
+        src="https://gizokraijaw.net/vignette.min.js"
+        data-zone="9825317"
+      />
     </div>
   );
 };
