@@ -79,4 +79,10 @@
   "error_username_min_length": "Nickname must be at least 3 characters.",
   "coming_soon": "Coming soon!",
   "BannerColor": "Banner Color"
+,
+"Benefit2Desc_new": "Change your name color and profile banner color.",
+"AdRemovalTitle": "Ad-Free Experience",
+"AdRemovalDesc": "Enjoy the game without any advertisements.",
+"TournamentHostTitle": "Host Tournaments",
+"TournamentHostDesc": "You can create and host your own tournaments."
 }

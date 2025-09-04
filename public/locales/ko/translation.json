@@ -79,4 +79,10 @@
   "error_username_min_length": "닉네임은 최소 3자 이상이어야 합니다.",
   "coming_soon": "준비 중입니다!",
   "BannerColor": "배너 색상"
+,
+"Benefit2Desc_new": "이름 색상과 프로필 배너 색상을 변경할 수 있습니다.",
+"AdRemovalTitle": "광고 없는 쾌적한 환경",
+"AdRemovalDesc": "모든 광고 없이 게임을 즐길 수 있습니다.",
+"TournamentHostTitle": "토너먼트 개최",
+"TournamentHostDesc": "직접 토너먼트를 생성하고 주최할 수 있습니다."
 }

@@ -58,23 +58,24 @@ const AdBanner = () => {
     script.dataset.zone = '9825317';
     script.async = true;
     
-    document.head.appendChild(script);
+    // Avoid adding the script if it already exists
+    if (!document.getElementById('monetag-vignette-script')) {
+      document.head.appendChild(script);
+    }
 
-    // This is the cleanup function
+    // Temporarily disabled the cleanup function for debugging
+    /*
     return () => {
-      // This runs when the component is unmounted (game starts)
       const existingScript = document.getElementById('monetag-vignette-script');
       if (existingScript) {
         existingScript.remove();
       }
-      
-      // Also, try to find and remove the ad container that Monetag creates.
-      // We have to guess the selector. Let's try a few common ones.
       const adContainer = document.querySelector('div[class*="vignette-banner"]');
       if (adContainer) {
         adContainer.remove();
       }
     };
+    */
   }, []); // The empty dependency array means this effect runs only once on mount and cleanup on unmount.
 
   return (

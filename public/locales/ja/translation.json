@@ -79,4 +79,10 @@
   "error_username_min_length": "ニックネームは3文字以上である必要があります。",
   "coming_soon": "準備中です！",
   "BannerColor": "バナーの色"
+,
+"Benefit2Desc_new": "名前の色とプロフィールバナーの色を変更できます。",
+"AdRemovalTitle": "広告なしの快適な体験",
+"AdRemovalDesc": "広告なしでゲームをお楽しみいただけます。",
+"TournamentHostTitle": "トーナメントの主催",
+"TournamentHostDesc": "独自のトーナメントを作成して主催できます。"
 }

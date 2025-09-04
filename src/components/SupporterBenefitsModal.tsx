@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabaseClient';
-import { FaStar, FaPalette, FaHistory, FaBrain } from 'react-icons/fa';
+import { FaStar, FaPalette, FaHistory, FaBrain, FaBan, FaTrophy } from 'react-icons/fa';
 
 interface SupporterBenefitsModalProps {
   isOpen: boolean;
@@ -14,10 +14,12 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
   if (!isOpen) return null;
 
   const benefits = [
-    { icon: <FaStar className="text-yellow-400" />, title: t('Benefit1Title'), description: t('Benefit1Desc') },
-    { icon: <FaPalette className="text-cyan-400" />, title: t('Benefit2Title'), description: t('Benefit2Desc') },
-    { icon: <FaHistory className="text-indigo-400" />, title: t('Benefit3Title'), description: t('Benefit3Desc') },
-    { icon: <FaBrain className="text-green-400" />, title: t('Benefit4Title'), description: t('Benefit4Desc') },
+    { icon: <FaStar className="text-yellow-400" />, title: t('Benefit1Title', 'Supporter-only Badge'), description: t('Benefit1Desc', 'Display a special badge next to your name.') },
+    { icon: <FaPalette className="text-cyan-400" />, title: t('Benefit2Title', 'Custom Colors'), description: t('Benefit2Desc_new', 'Change your name color and profile banner color.') },
+    { icon: <FaHistory className="text-indigo-400" />, title: t('Benefit3Title', 'Access to Replays'), description: t('Benefit3Desc', 'Save and watch your past matches.') },
+    { icon: <FaBrain className="text-green-400" />, title: t('Benefit4Title', 'AI Analysis'), description: t('Benefit4Desc', 'Get AI-powered analysis of your games.') },
+    { icon: <FaBan className="text-red-500" />, title: t('AdRemovalTitle', 'Ad-Free Experience'), description: t('AdRemovalDesc', 'Enjoy the game without any advertisements.') },
+    { icon: <FaTrophy className="text-yellow-500" />, title: t('TournamentHostTitle', 'Host Tournaments'), description: t('TournamentHostDesc', 'You can create and host your own tournaments.') },
   ];
 
   const handleLogin = () => {
