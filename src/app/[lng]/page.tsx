@@ -13,6 +13,7 @@ import RoomCodeModal from '@/components/RoomCodeModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useTranslation } from 'react-i18next';
+import Script from 'next/script';
 
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { io, Socket } from 'socket.io-client';
@@ -48,42 +49,13 @@ const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () =>
 }
 
 const AdBanner = () => {
-  const { t } = useTranslation();
-
-  useEffect(() => {
-    // This function runs when the component is mounted (user is on the menu)
-    const script = document.createElement('script');
-    script.id = 'monetag-vignette-script';
-    script.src = 'https://gizokraijaw.net/vignette.min.js';
-    script.dataset.zone = '9825317';
-    script.async = true;
-    
-    // Avoid adding the script if it already exists
-    if (!document.getElementById('monetag-vignette-script')) {
-      document.head.appendChild(script);
-    }
-
-    // Temporarily disabled the cleanup function for debugging
-    /*
-    return () => {
-      const existingScript = document.getElementById('monetag-vignette-script');
-      if (existingScript) {
-        existingScript.remove();
-      }
-      const adContainer = document.querySelector('div[class*="vignette-banner"]');
-      if (adContainer) {
-        adContainer.remove();
-      }
-    };
-    */
-  }, []); // The empty dependency array means this effect runs only once on mount and cleanup on unmount.
-
   return (
-    <div className="w-full max-w-md mx-auto my-4 text-center text-white">
-      <div style={{ minHeight: '100px', border: '1px dashed #555', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span>{t('Advertisement', 'Advertisement')}</span>
-      </div>
-    </div>
+    <Script
+      id="monetag-vignette-script"
+      strategy="lazyOnload"
+      src="https://gizokraijaw.net/vignette.min.js"
+      data-zone="9825317"
+    />
   );
 };
 
@@ -179,6 +151,24 @@ export default function Home() {
     setSelectedGameMode(null);
     setRoom(null);
   }, []);
+
+  useEffect(() => {
+    // This effect runs whenever the game mode changes to hide/show the ad.
+    try {
+      const adContainer = document.querySelector('div[class*="vignette-banner"]');
+      if (adContainer) {
+        if (selectedGameMode) {
+          // Game is active, hide the ad.
+          adContainer.style.display = 'none';
+        } else {
+          // On the menu, show the ad.
+          adContainer.style.display = 'block';
+        }
+      }
+    } catch (error) {
+      console.error('Error handling ad visibility:', error);
+    }
+  }, [selectedGameMode]); // Dependency array ensures this runs when state changes.
 
   if (loading) {
     return (
@@ -283,6 +273,7 @@ btn-hover-scale">
           isOpen={isBenefitsOpen}
           onClose={() => setBenefitsOpen(false)}
           isGuest={user?.is_anonymous || false}
+          user={user}
         />
       </main>
     )}

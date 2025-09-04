@@ -7,9 +7,10 @@ interface SupporterBenefitsModalProps {
   isOpen: boolean;
   onClose: () => void;
   isGuest: boolean;
+  user: { id: string } | null;
 }
 
-const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsModalProps) => {
+const SupporterBenefitsModal = ({ isOpen, onClose, isGuest, user }: SupporterBenefitsModalProps) => {
   const { t } = useTranslation();
   if (!isOpen) return null;
 
@@ -26,6 +27,8 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
     supabase.auth.signOut();
     onClose();
   };
+
+  const gumroadLink = `https://3614751670147.gumroad.com/l/tkdjxl?user_id=${user?.id}`;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
@@ -55,7 +58,7 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
           ) : (
             <div className="w-full">
               <a
-                href="https://3614751670147.gumroad.com/l/tkdjxl"
+                href={gumroadLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full max-w-xs mx-auto px-8 py-4 bg-pink-500 text-white font-bold rounded-lg hover:bg-pink-600 transition-colors text-xl btn-hover-scale"
@@ -68,7 +71,6 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest }: SupporterBenefitsM
         </div>
       </div>
     </div>
-  );
-};
+  );;
 
 export default SupporterBenefitsModal;
