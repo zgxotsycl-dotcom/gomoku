@@ -463,6 +463,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                     body: JSON.stringify({
                         board: state.board,
                         player: state.currentPlayer,
+                        moves: state.history,
                     }),
                 });
 
