@@ -15,6 +15,7 @@ interface GameBoardProps {
     whatIf: { isMode: boolean; };
     winningLine: { row: number; col: number }[] | null;
     forbiddenMoves: { row: number; col: number }[];
+    isWinningShake: boolean; // Add new prop
 }
 
 export const GameBoard = ({
@@ -29,6 +30,7 @@ export const GameBoard = ({
     whatIf,
     winningLine,
     forbiddenMoves,
+    isWinningShake, // Destructure new prop
 }: GameBoardProps) => {
     const isWinningStone = (row: number, col: number) => winningLine?.some(stone => stone.row === row && stone.col === col) || false;
     const isLastMove = (row: number, col: number) => {
@@ -37,7 +39,7 @@ export const GameBoard = ({
     };
 
     return (
-        <div className="relative" style={{ width: '64vmin', height: '64vmin' }}>
+        <div className={`relative ${isWinningShake ? 'animate-board-shake' : ''}`} style={{ width: '64vmin', height: '64vmin' }}>
             {/* The frame with a wooden color */}
             <div className={`p-4 bg-[#d2b48c] rounded-md shadow-lg w-full h-full ${winningLine ? 'animate-red-shadow' : ''}`}>
                 {/* The interactive grid area */}

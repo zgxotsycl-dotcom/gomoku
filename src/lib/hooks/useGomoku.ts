@@ -84,6 +84,7 @@ const initialState = {
     whatIfWinner: null as Player | null,
     whatIfWinningLine: null as {row: number, col: number}[] | null,
     whatIfLastMove: null as Move | null,
+    isWinningShake: false, // ADDED
 };
 
 type Action =
@@ -104,10 +105,13 @@ type Action =
     | { type: 'SET_AI_THINKING', payload: boolean }
     | { type: 'SET_REPLAY_INDEX', payload: number }
     | { type: 'SET_IS_REPLAYING', payload: boolean }
-    | { type: 'TICK_TIMER' };
+    | { type: 'TICK_TIMER' }
+    | { type: 'STOP_WIN_ANIMATION' }; // ADDED
 
 function gomokuReducer(state: typeof initialState, action: Action): typeof initialState {
     switch (action.type) {
+        case 'STOP_WIN_ANIMATION': // ADDED
+            return { ...state, isWinningShake: false };
         case 'SET_BOARD':
             return { ...state, board: action.payload };
         case 'SET_HISTORY':
@@ -129,6 +133,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                     gameState: 'post-game',
                     gameDuration: state.startTime ? formatDuration((Date.now() - state.startTime) / 1000) : "",
                     turnTimeRemaining: 0,
+                    isWinningShake: true, // MODIFIED
                 };
             }
             return { ...state, turnTimeRemaining: newTime };
@@ -159,6 +164,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                     gameState: 'post-game',
                     gameDuration: state.startTime ? formatDuration((Date.now() - state.startTime) / 1000) : "",
                     isAiThinking: false,
+                    isWinningShake: true, // MODIFIED
                 };
             }
             
@@ -176,6 +182,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
             };
         }
         case 'PLACE_STONE': {
+            if (state.gameMode === 'pva' && state.currentPlayer === state.aiPlayer) return state;
             if (state.isAiThinking) return state;
             const { row, col } = action.payload;
             const player = state.currentPlayer;
@@ -200,6 +207,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                     winningLine: winInfo,
                     gameState: 'post-game',
                     gameDuration: state.startTime ? formatDuration((Date.now() - state.startTime) / 1000) : "",
+                    isWinningShake: true, // MODIFIED
                 };
             }
             
@@ -517,6 +525,16 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         };
         fetchUserProfile();
     }, [user]);
+
+    // Effect to turn off the winning shake animation
+    useEffect(() => {
+        if (state.isWinningShake) {
+            const timer = setTimeout(() => {
+                dispatch({ type: 'STOP_WIN_ANIMATION' });
+            }, 500); // Duration of the CSS animation
+            return () => clearTimeout(timer);
+        }
+    }, [state.isWinningShake]);
 
     return { state, dispatch, socketRef };
 };

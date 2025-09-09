@@ -58,6 +58,7 @@ const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
                 whatIf={{ isMode: state.isWhatIfMode }}
                 winningLine={state.isWhatIfMode ? state.whatIfWinningLine : state.winningLine}
                 forbiddenMoves={state.forbiddenMoves}
+                isWinningShake={state.isWinningShake}
             />
 
             <div className="mt-4 flex flex-col items-center gap-2">

@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Winning Shake Animation */
+@keyframes board-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-board-shake {
+  animation: board-shake 0.5s ease-in-out;
+}
+
+
 /* Dark Leather Texture Background */
 .main-background {
   background-color: #1c1c1c; /* Dark base */
@@ -365,6 +383,3 @@
 .animate-chroma-shine {
   animation: chroma-shine 2s linear infinite;
 }
-
-
-
