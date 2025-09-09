@@ -4,7 +4,7 @@
  * This library is intended to be used in a Deno environment.
  */
 
-import * as tf from '@tensorflow/tfjs-node';
+import * as tf from '@tensorflow/tfjs';
 
 // --- Type Definitions ---
 export type Player = 'black' | 'white';
