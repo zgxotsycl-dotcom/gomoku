@@ -6,7 +6,7 @@ import { findForbiddenMoves } from '../gomokuRules';
 import io, { Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { supabase } from '../supabaseClient';
-import openingBook from '../../../../opening_book.json';
+import openingBook from '../opening_book.json';
 
 const BOARD_SIZE = 19;
 const K_FACTOR = 32;
