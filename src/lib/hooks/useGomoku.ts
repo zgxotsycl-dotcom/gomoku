@@ -454,7 +454,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             dispatch({ type: 'SET_AI_THINKING', payload: true });
 
             try {
-                const response = await fetch('http://localhost:8080/get-move', {
+                const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-ai-move`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
