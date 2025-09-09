@@ -37,7 +37,7 @@ export default function PvaPage() {
 
   const handleStonePlacement = useCallback((row: number, col: number, isAI: boolean = false) => {
     const { winner, currentPlayer, playerColor, board } = stateRef.current;
-    if (board[row][col] || winner || gameState !== 'playing') return;
+    if (board[row][col] || winner || stateRef.current.gameState !== 'playing') return;
     if (!isAI && currentPlayer !== playerColor) {
         toast.error(t('Board.toast.notYourTurn'));
         return;

@@ -158,6 +158,7 @@ btn-hover-scale">
           isOpen={isBenefitsOpen}
           onClose={() => setBenefitsOpen(false)}
           isGuest={user?.is_anonymous || false}
+          user={user}
         />
       </main>
     )}

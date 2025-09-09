@@ -112,7 +112,7 @@ export default function Home() {
     return () => {
         socket.disconnect();
     };
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     if (!loading) return;
@@ -155,7 +155,7 @@ export default function Home() {
   useEffect(() => {
     // This effect runs whenever the game mode changes to hide/show the ad.
     try {
-      const adContainer = document.querySelector('div[class*="vignette-banner"]');
+      const adContainer = document.querySelector<HTMLElement>('div[class*="vignette-banner"]');
       if (adContainer) {
         if (selectedGameMode) {
           // Game is active, hide the ad.
@@ -169,6 +169,8 @@ export default function Home() {
       console.error('Error handling ad visibility:', error);
     }
   }, [selectedGameMode]); // Dependency array ensures this runs when state changes.
+
+  
 
   if (loading) {
     return (
@@ -254,8 +256,8 @@ btn-hover-scale">
               )}
             </div>
 
-            {/* Ad placeholder for non-supporters */}
-            {!profile?.is_supporter && <AdBanner />}
+            {/* Ad placeholder for non-supporters, shown only on the main menu */}
+            {!profile?.is_supporter && !selectedGameMode && <AdBanner />}
 
             <Ranking />
           </div>

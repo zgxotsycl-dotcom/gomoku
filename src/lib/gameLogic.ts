@@ -1,4 +1,4 @@
-import { Player } from './ai';
+import { Player } from './ai.ts';
 
 export const BOARD_SIZE = 19;
 

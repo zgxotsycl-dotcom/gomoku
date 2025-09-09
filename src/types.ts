@@ -27,3 +27,5 @@ export type EmoticonMessage = {
   fromId: string;
   emoticon: string;
 };
+
+export type AIKnowledge = Map<string, { wins: number; losses: number }>;

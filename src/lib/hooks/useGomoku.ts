@@ -1,17 +1,19 @@
 import { useReducer, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { GameMode, GameState, Profile, Game, Player, Move } from '../../types';
+import type { GameMode, GameState, Profile, Game, Player, Move, AIKnowledge } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { findForbiddenMoves } from '../gomokuRules';
 import io, { Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { supabase } from '../supabaseClient';
+import openingBook from '../../../../opening_book.json';
 
 const BOARD_SIZE = 19;
 const K_FACTOR = 32;
 const BASE_TURN_TIME = 5000;
 const TIME_INCREMENT = 1000;
 const MAX_TURN_TIME = 30000;
+const AI_THINK_TIME_BUFFER = 1200; // ms
 
 const formatDuration = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
@@ -74,7 +76,7 @@ const initialState = {
     createdRoomId: null as string | null,
     showRoomCodeModal: false,
     isSocketConnected: false,
-    aiKnowledge: null as Map<string, { wins: number; losses: number; }> | null,
+    aiKnowledge: null as AIKnowledge | null,
     isWhatIfMode: false,
     whatIfBoard: null as (Player | null)[][] | null,
     isAiThinking: false,
@@ -95,6 +97,7 @@ type Action =
     | { type: 'SET_HISTORY', payload: Move[] }
     | { type: 'SET_AI_PLAYER', payload: Player }
     | { type: 'SET_USER_PROFILE', payload: Profile | null }
+    | { type: 'SET_AI_KNOWLEDGE', payload: AIKnowledge }
     | { type: 'ENTER_WHAT_IF' }
     | { type: 'EXIT_WHAT_IF' }
     | { type: 'PLACE_WHAT_IF_STONE', payload: { row: number, col: number } }
@@ -113,6 +116,8 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
             return { ...state, gameState: action.payload };
         case 'SET_GAME_MODE':
             return { ...state, gameMode: action.payload };
+        case 'SET_AI_KNOWLEDGE':
+            return { ...state, aiKnowledge: action.payload };
         case 'TICK_TIMER': {
             if (state.gameState !== 'playing') return state;
             const newTime = state.turnTimeRemaining - 100;
@@ -130,43 +135,13 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
         }
         case 'AI_MOVE': {
             const { row, col } = action.payload;
-            if (row === -1 || col === -1) { // AI failed or passed
-                if (state.isWhatIfMode) return { ...state, isAiThinking: false };
-                return state;
-            }
-
-            if (state.isWhatIfMode) {
-                if (!state.whatIfBoard || state.isAiThinking || state.whatIfWinner) return state;
-                const player = state.whatIfPlayer;
-                if (state.whatIfBoard[row][col]) return { ...state, isAiThinking: false };
-
-                const newBoard = state.whatIfBoard.map(r => [...r]);
-                newBoard[row][col] = player;
-                const winInfo = checkWin(newBoard, player, row, col);
-
-                if (winInfo) {
-                    return {
-                        ...state,
-                        whatIfBoard: newBoard,
-                        whatIfWinner: player,
-                        whatIfWinningLine: winInfo,
-                        whatIfLastMove: { player, row, col },
-                        isAiThinking: false,
-                    };
-                }
-
-                return {
-                    ...state,
-                    whatIfBoard: newBoard,
-                    whatIfPlayer: player === 'black' ? 'white' : 'black',
-                    whatIfLastMove: { player, row, col },
-                    isAiThinking: false,
-                };
+            if (row === -1 || col === -1) {
+                return { ...state, isAiThinking: false };
             }
 
             const player = state.currentPlayer;
             if (state.board[row][col] || state.winner || state.gameState !== 'playing') {
-                return state;
+                return { ...state, isAiThinking: false };
             }
 
             const newBoard = state.board.map(r => [...r]);
@@ -183,6 +158,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                     winningLine: winInfo,
                     gameState: 'post-game',
                     gameDuration: state.startTime ? formatDuration((Date.now() - state.startTime) / 1000) : "",
+                    isAiThinking: false,
                 };
             }
             
@@ -196,9 +172,11 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 forbiddenMoves: player === 'white' ? findForbiddenMoves(newBoard, 'black') : [],
                 turnTimeLimit: newTurnTimeLimit,
                 turnTimeRemaining: newTurnTimeLimit,
+                isAiThinking: false,
             };
         }
         case 'PLACE_STONE': {
+            if (state.isAiThinking) return state;
             const { row, col } = action.payload;
             const player = state.currentPlayer;
 
@@ -248,6 +226,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 aiPlayer: Math.random() < 0.5 ? 'black' : 'white',
                 turnTimeLimit: BASE_TURN_TIME,
                 turnTimeRemaining: BASE_TURN_TIME,
+                aiKnowledge: state.aiKnowledge, // Preserve loaded knowledge
             };
         }
         case 'SET_AI_PLAYER':
@@ -265,7 +244,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 isWhatIfMode: true,
                 whatIfBoard: replayBoard,
                 whatIfPlayer: nextPlayer,
-                aiPlayer: nextPlayer, // Assume AI makes the next move
+                aiPlayer: nextPlayer,
                 whatIfWinner: null,
                 whatIfWinningLine: null,
                 whatIfLastMove: null,
@@ -332,6 +311,33 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     const aiWorkerRef = useRef<Worker | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    
+
+    // Fetch AI knowledge data on initial load
+    useEffect(() => {
+        const fetchAiKnowledge = async () => {
+            console.log("Fetching AI knowledge data...");
+            const { data, error } = await supabase
+                .from('pattern_knowledge')
+                .select('pattern_hash, wins, losses');
+
+            if (error) {
+                console.error("Error fetching AI knowledge:", error);
+                toast.error("Could not load AI knowledge data.");
+                return;
+            }
+
+            const knowledgeMap: AIKnowledge = new Map();
+            for (const record of data) {
+                knowledgeMap.set(record.pattern_hash, { wins: record.wins, losses: record.losses });
+            }
+
+            dispatch({ type: 'SET_AI_KNOWLEDGE', payload: knowledgeMap });
+            console.log(`Successfully loaded ${knowledgeMap.size} AI knowledge patterns.`);
+        };
+
+        fetchAiKnowledge();
+    }, []);
 
     // Load replay game data when prop changes
     useEffect(() => {
@@ -346,7 +352,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     useEffect(() => {
         const saveGame = async () => {
             if (state.gameState === 'post-game' && !isGameSaved && user && state.gameMode !== 'pvp' && !replayGame) {
-                setIsGameSaved(true); // Prevent multiple saves
+                setIsGameSaved(true);
 
                 const { data: gameData, error: gameError } = await supabase
                     .from('games')
@@ -438,30 +444,60 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         };
     }, [state.currentPlayer, state.gameState, state.winner, state.gameMode]);
 
-    // AI Worker Setup & Message Handling
+    // AI Turn Logic (Now using external AI server)
     useEffect(() => {
-        aiWorkerRef.current = new Worker('/ai.worker.js', { type: 'module' });
-        aiWorkerRef.current.onmessage = (e) => {
-            const { row, col } = e.data;
-            dispatch({ type: 'AI_MOVE', payload: { row, col } });
-        };
-        return () => aiWorkerRef.current?.terminate();
-    }, []);
+        const getAiMoveFromServer = async () => {
+            if (state.gameMode !== 'pva' || state.currentPlayer !== state.aiPlayer || state.winner || state.gameState !== 'playing') {
+                return;
+            }
 
-    // AI Turn Logic
-    useEffect(() => {
-        if (state.gameMode === 'pva' && state.currentPlayer === state.aiPlayer && !state.winner && state.gameState === 'playing') {
-            aiWorkerRef.current?.postMessage({ board: state.board, player: state.currentPlayer });
-        }
-    }, [state.currentPlayer, state.gameMode, state.winner, state.board, state.aiPlayer, state.gameState]);
+            dispatch({ type: 'SET_AI_THINKING', payload: true });
+
+            try {
+                const response = await fetch('http://localhost:8080/get-move', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        board: state.board,
+                        player: state.currentPlayer,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`AI server responded with status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.move) {
+                    dispatch({ type: 'AI_MOVE', payload: { row: data.move[0], col: data.move[1] } });
+                } else {
+                    throw new Error('Invalid response from AI server');
+                }
+
+            } catch (error) {
+                console.error("Error fetching AI move:", error);
+                toast.error('Could not connect to AI server.');
+                dispatch({ type: 'SET_AI_THINKING', payload: false });
+            }
+        };
+
+        getAiMoveFromServer();
+
+    }, [state.currentPlayer, state.gameMode, state.aiPlayer, state.winner, state.gameState, state.board, dispatch]);
 
     // What If AI Turn Logic
     useEffect(() => {
         if (state.isWhatIfMode && state.whatIfPlayer === state.aiPlayer && state.whatIfBoard && !state.isAiThinking) {
             dispatch({ type: 'SET_AI_THINKING', payload: true });
-            aiWorkerRef.current?.postMessage({ board: state.whatIfBoard, player: state.whatIfPlayer });
+            aiWorkerRef.current?.postMessage({ 
+                board: state.whatIfBoard, 
+                player: state.whatIfPlayer, 
+                knowledge: state.aiKnowledge,
+            });
         }
-    }, [state.isWhatIfMode, state.whatIfPlayer, state.whatIfBoard, state.aiPlayer, state.isAiThinking]);
+    }, [state.isWhatIfMode, state.whatIfPlayer, state.whatIfBoard, state.aiPlayer, state.isAiThinking, state.aiKnowledge]);
     
     // Game Start Logic
     useEffect(() => {

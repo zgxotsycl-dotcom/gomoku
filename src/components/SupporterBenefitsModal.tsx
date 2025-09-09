@@ -71,6 +71,7 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest, user }: SupporterBen
         </div>
       </div>
     </div>
-  );;
+  );
+};
 
 export default SupporterBenefitsModal;

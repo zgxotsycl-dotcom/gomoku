@@ -1,4 +1,4 @@
-// Gomoku AI Worker - v5.3 (FINAL, CORRECTED, and VERIFIED)
+// Gomoku AI Worker - v4 (Restored Stable Version: MCTS + Heuristics + Learning Data)
 
 self.onmessage = async (e) => {
     const { board, player, knowledge } = e.data;
@@ -6,13 +6,12 @@ self.onmessage = async (e) => {
 
     // --- Configuration ---
     const BOARD_SIZE = 19;
-    const VCF_SEARCH_DEPTH = 8; 
     const MCTS_ITERATIONS = 3000;
-    const MCTS_TIMEOUT = 10000;    
-    const C_PARAM = 1.414; 
+    const MCTS_TIMEOUT = 10000;
+    const C_PARAM = 1.414;
     const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
 
-    // --- START: Hashing, Heuristics, MCTS (Full logic from v4) ---
+    // --- Pattern Hashing Logic ---
     const HASH_WINDOW_SIZE = 3;
     function getPatternHash(b, r, c, p) {
         const pattern = [];
@@ -49,6 +48,7 @@ self.onmessage = async (e) => {
     }
     function flip(matrix) { return matrix.map(row => row.slice().reverse()); }
 
+    // --- Heuristic Evaluation Logic ---
     const HEURISTIC_SCORES = { FIVE: 10000000, OPEN_FOUR: 500000, CLOSED_FOUR: 4000, OPEN_THREE: 2500, CLOSED_THREE: 100, OPEN_TWO: 20, CLOSED_TWO: 2, ONE: 1 };
     function getScore(count, openEnds) {
         if (openEnds === 0 && count < 5) return 0;
@@ -62,31 +62,19 @@ self.onmessage = async (e) => {
         }
     }
     function evaluateLine(line, p) {
-        let score = 0;
-        for (let i = 0; i <= line.length - 5; i++) {
-            const window = line.slice(i, i + 5);
-            let playerCount = 0;
-            let opponentCount = 0;
-            let emptyCount = 0;
-            for (const stone of window) {
-                if (stone === p) playerCount++;
-                else if (stone === null) emptyCount++;
-                else opponentCount++;
-            }
-
-            if (playerCount > 0 && opponentCount > 0) continue; // Mixed window is not a threat
-
-            let openEnds = 0;
-            if (i > 0 && line[i-1] === null) openEnds++;
-            if (i + 5 < line.length && line[i+5] === null) openEnds++;
-
-            if (playerCount > 0) {
-                 score += getScore(playerCount, openEnds);
-            }
-            if (opponentCount > 0) {
-                 score += getScore(opponentCount, openEnds) * 1.1; // Blocking bonus
+        let score = 0, consecutive = 0, openEnds = 0;
+        for (let i = 0; i < line.length; i++) {
+            if (line[i] === p) {
+                consecutive++;
+            } else if (line[i] === null) {
+                if (consecutive > 0) { openEnds++; score += getScore(consecutive, openEnds); consecutive = 0; openEnds = 1; }
+                else openEnds = 1;
+            } else {
+                if (consecutive > 0) score += getScore(consecutive, openEnds);
+                consecutive = 0; openEnds = 0;
             }
         }
+        if (consecutive > 0) score += getScore(consecutive, openEnds);
         return score;
     }
     function getMoveScore(b, r, c, p) {
@@ -101,6 +89,8 @@ self.onmessage = async (e) => {
         }
         return totalScore;
     }
+
+    // --- MCTS Logic ---
     const checkTerminalState = (b, p, r, c) => {
         if (p && r !== undefined && c !== undefined) {
             for (const dir of directions) {
@@ -209,7 +199,6 @@ self.onmessage = async (e) => {
     }
 
     const findBestMoveMCTS = (board, player) => {
-        console.log("[Worker] MCTS: Starting search...");
         return new Promise((resolve) => {
             const startTime = Date.now();
             const root = new MCTSNode(board, player);
@@ -229,31 +218,19 @@ self.onmessage = async (e) => {
             }
 
             for (let i = 0; i < MCTS_ITERATIONS; i++) {
-                if (i % 500 === 0) {
-                    console.log(`[Worker] MCTS: Iteration ${i}...`);
-                }
                 if (Date.now() - startTime > MCTS_TIMEOUT) {
                     console.log(`[Worker] MCTS timeout! Iterations: ${i}`);
                     break;
                 }
                 let node = root;
-                while (node.isFullyExpanded() && node.children.length > 0) { 
-                    node = node.selectBestChild(); 
-                }
-                if (!node) {
-                    console.log("[Worker] MCTS: Tree fully explored or stuck, breaking.");
-                    break;
-                }
-                if (!node.isFullyExpanded()) { 
-                    node = node.expand(); 
-                }
+                while (node.isFullyExpanded() && node.children.length > 0) { node = node.selectBestChild(); }
+                if (!node.isFullyExpanded()) { node = node.expand(); }
                 if (node) {
                     const result = node.simulate();
                     node.backpropagate(result);
                 }
             }
 
-            console.log("[Worker] MCTS: Search loop finished. Finding best move...");
             let bestMove = null;
             let maxVisits = -1;
             for (const child of root.children) {
@@ -262,134 +239,15 @@ self.onmessage = async (e) => {
                     bestMove = child.move;
                 }
             }
-            const moves = getPossibleMoves(board, player);
-            const finalMove = bestMove || (moves.length > 0 ? moves[0] : null);
-            console.log("[Worker] MCTS: Best move found:", finalMove);
-            resolve(finalMove);
+            resolve(bestMove || getPossibleMoves(board, player)[0]);
         });
     };
-    // --- END: Hashing, Heuristics, MCTS ---
-
-    // --- START: VCF (Forced Win) Search Engine ---
-    function findThreats(b, p, len) {
-        const threats = [];
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (b[r][c] === null) {
-                    b[r][c] = p;
-                    if (isThreat(b, p, r, c, len)) {
-                        threats.push({ r, c });
-                    }
-                    b[r][c] = null;
-                }
-            }
-        }
-        return threats;
-    }
-
-    function isThreat(b, p, r, c, len) {
-        for (const dir of directions) {
-            let consecutive = 1;
-            let openEnds = 0;
-
-            // Positive direction
-            for (let i = 1; i < 6; i++) {
-                const currentR = r + i * dir.y, currentC = c + i * dir.x;
-                if (b[currentR]?.[currentC] === p) {
-                    consecutive++;
-                } else {
-                    if (b[currentR]?.[currentC] === null) openEnds++;
-                    break;
-                }
-            }
-
-            // Negative direction
-            for (let i = 1; i < 6; i++) {
-                const currentR = r - i * dir.y, currentC = c - i * dir.x;
-                if (b[currentR]?.[currentC] === p) {
-                    consecutive++;
-                } else {
-                    if (b[currentR]?.[currentC] === null) openEnds++;
-                    break;
-                }
-            }
-
-            if (len === 5 && consecutive >= 5) return true;
-            if (len < 5 && consecutive === len && openEnds >= 2) return true; 
-        }
-        return false;
-    }
-
-    function findVCF(b, p, depth) {
-        if (depth <= 0) return null;
-
-        const winMove = findThreats(b, p, 5)[0];
-        if (winMove) return winMove;
-
-        const threats = findThreats(b, p, 4);
-        for (const threatMove of threats) {
-            const tempBoard = b.map(row => [...row]);
-            tempBoard[threatMove.r][threatMove.c] = p;
-
-            const opponentBlocks = findThreats(tempBoard, p, 5);
-            if (opponentBlocks.length === 0) continue;
-
-            let canOpponentBreak = false;
-            for (const blockMove of opponentBlocks) {
-                tempBoard[blockMove.r][blockMove.c] = opponent;
-                if (findVCF(tempBoard, p, depth - 1) === null) {
-                    canOpponentBreak = true;
-                }
-                tempBoard[blockMove.r][blockMove.c] = null; // backtrack
-                if (canOpponentBreak) break;
-            }
-
-            if (!canOpponentBreak) {
-                return threatMove;
-            }
-        }
-        return null;
-    }
-    // --- END: VCF Search Engine ---
-
-    // --- Main Decision Function ---
-    async function getBestMove() {
-        // 1. Check for my immediate win
-        const winMove = findThreats(board, player, 5)[0];
-        if (winMove) return [winMove.r, winMove.c];
-
-        // 2. Block opponent's immediate win
-        const blockMove = findThreats(board, opponent, 5)[0];
-        if (blockMove) return [blockMove.r, blockMove.c];
-
-        /*
-        // 3. Check for my VCF win
-        const vcfMove = findVCF(board, player, VCF_SEARCH_DEPTH);
-        if (vcfMove) {
-            console.log("[AI] VCF Win found! Playing:", vcfMove);
-            return [vcfMove.r, vcfMove.c];
-        }
-
-        // 4. Block opponent's VCF win
-        const opponentVCF = findVCF(board, opponent, VCF_SEARCH_DEPTH);
-        if (opponentVCF) {
-            console.log("[AI] Blocking opponent VCF at:", opponentVCF);
-            return [opponentVCF.r, opponentVCF.c];
-        }
-        */
-
-        // 5. If no forced wins, use MCTS
-        console.log("[AI] No VCF found, using MCTS...");
-        return await findBestMoveMCTS(board, player);
-    }
 
     try {
-        const bestMove = await getBestMove();
-        // MCTS returns [r, c], VCF returns {r, c}
-        const moveObject = Array.isArray(bestMove) ? { r: bestMove[0], c: bestMove[1] } : bestMove;
-        self.postMessage({ row: moveObject?.r, col: moveObject?.c });
+        const move = await findBestMoveMCTS(board, player);
+        self.postMessage({ row: move?.[0], col: move?.[1] });
     } catch (err) {
-        console.error('[Worker] Critical error in AI:', err);
+        console.error('[Worker] Critical error in final AI:', err);
         self.postMessage({ row: -1, col: -1 });
     }
 };

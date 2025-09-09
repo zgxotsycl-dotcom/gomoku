@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -22,7 +22,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState('');
 
-  const validateUsername = (name: string) => {
+    const validateUsername = useCallback((name: string) => {
     if (name.length < 3) {
       setUsernameError(t('error_username_min_length'));
       return false;
@@ -33,7 +33,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     }
     setUsernameError('');
     return true;
-  };
+  }, [t]);
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUsername = e.target.value;
@@ -69,7 +69,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       };
       fetchProfile();
     }
-  }, [user, isOpen, profile]);
+  }, [user, isOpen, profile, validateUsername]);
 
   const handleSave = async () => {
     if (!user) return;
