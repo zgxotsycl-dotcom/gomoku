@@ -319,33 +319,6 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     const aiWorkerRef = useRef<Worker | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
-    
-
-    // Fetch AI knowledge data on initial load
-    useEffect(() => {
-        const fetchAiKnowledge = async () => {
-            console.log("Fetching AI knowledge data...");
-            const { data, error } = await supabase
-                .from('pattern_knowledge')
-                .select('pattern_hash, wins, losses');
-
-            if (error) {
-                console.error("Error fetching AI knowledge:", error);
-                toast.error("Could not load AI knowledge data.");
-                return;
-            }
-
-            const knowledgeMap: AIKnowledge = new Map();
-            for (const record of data) {
-                knowledgeMap.set(record.pattern_hash, { wins: record.wins, losses: record.losses });
-            }
-
-            dispatch({ type: 'SET_AI_KNOWLEDGE', payload: knowledgeMap });
-            console.log(`Successfully loaded ${knowledgeMap.size} AI knowledge patterns.`);
-        };
-
-        fetchAiKnowledge();
-    }, []);
 
     // Load replay game data when prop changes
     useEffect(() => {
