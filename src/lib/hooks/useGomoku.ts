@@ -435,7 +435,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             dispatch({ type: 'SET_AI_THINKING', payload: true });
 
             try {
-                const response = await fetch('https://www.omokk.com/get-move', {
+                const response = await fetch(new URL('https://www.omokk.com/get-move'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
