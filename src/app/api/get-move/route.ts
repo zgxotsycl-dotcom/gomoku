@@ -4,7 +4,7 @@ export async function POST(request: Request) {
   const body = await request.json();
 
   try {
-    const aiServerUrl = 'http://34.71.194.197:8080/get-move';
+    const aiServerUrl = 'https://ai.omokk.com/get-move';
 
     const response = await fetch(aiServerUrl, {
       method: 'POST',
