@@ -428,7 +428,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     // AI Turn Logic (Now using external AI server)
     useEffect(() => {
         const getAiMoveFromServer = async () => {
-            if (state.gameMode !== 'pva' || state.currentPlayer !== state.aiPlayer || state.winner || state.gameState !== 'playing') {
+            if (state.gameMode !== 'pva' || state.currentPlayer !== state.aiPlayer || state.winner || state.gameState !== 'playing' || state.isAiThinking) {
                 return;
             }
 
