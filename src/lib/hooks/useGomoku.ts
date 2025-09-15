@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../supabaseClient';
 import openingBook from '../opening_book.json';
 
-const BOARD_SIZE = 19;
+const BOARD_SIZE = Number(process.env.NEXT_PUBLIC_BOARD_SIZE || 15);
 const K_FACTOR = 32;
 const BASE_TURN_TIME = 5000;
 const TIME_INCREMENT = 1000;
@@ -28,13 +28,13 @@ const checkWin = (board: (Player | null)[][], player: Player, row: number, col: 
         let count = 1;
         for (let i = 1; i < 5; i++) {
             const newRow = row + i * dir.y; const newCol = col + i * dir.x;
-            if (newRow < 0 || newRow >= BOARD_SIZE || newCol < 0 || newCol >= BOARD_SIZE || board[newRow][newCol] !== player) break;
+            if (newRow < 0 || newRow >= board.length || newCol < 0 || newCol >= board.length || board[newRow][newCol] !== player) break;
             line.push({row: newRow, col: newCol});
             count++;
         }
         for (let i = 1; i < 5; i++) {
             const newRow = row - i * dir.y; const newCol = col - i * dir.x;
-            if (newRow < 0 || newRow >= BOARD_SIZE || newCol < 0 || newCol >= BOARD_SIZE || board[newRow][newCol] !== player) break;
+            if (newRow < 0 || newRow >= board.length || newCol < 0 || newCol >= board.length || board[newRow][newCol] !== player) break;
             line.push({row: newRow, col: newCol});
             count++;
         }
@@ -242,7 +242,8 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
         case 'SET_USER_PROFILE':
             return { ...state, userProfile: action.payload };
         case 'ENTER_WHAT_IF': {
-            const replayBoard = Array(19).fill(null).map(() => Array(19).fill(null));
+            const size = state.board.length || BOARD_SIZE;
+            const replayBoard = Array(size).fill(null).map(() => Array(size).fill(null));
             for (let i = 0; i < state.replayMoveIndex; i++) {
                 if (state.history[i]) replayBoard[state.history[i].row][state.history[i].col] = state.history[i].player;
             }
@@ -375,7 +376,8 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     // Replay board update logic
     useEffect(() => {
         if (state.gameState === 'replay') {
-            const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+            const size = state.board.length || BOARD_SIZE;
+            const newBoard = Array(size).fill(null).map(() => Array(size).fill(null));
             for (let i = 0; i < state.replayMoveIndex; i++) {
                 const move = state.history[i];
                 if (move) {
@@ -445,6 +447,9 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                         board: state.board,
                         player: state.currentPlayer,
                         moves: state.history,
+                        timeLeftMs: state.turnTimeRemaining,
+                        turnLimitMs: state.turnTimeLimit,
+                        turnEndsAt: Date.now() + state.turnTimeRemaining,
                     }),
                 });
 

@@ -1,9 +1,7 @@
 import type { Player } from '../types';
 
-const BOARD_SIZE = 19;
-
 // Helper function to check bounds
-const inBounds = (r: number, c: number) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+const inBounds = (r: number, c: number, size: number) => r >= 0 && r < size && c >= 0 && c < size;
 
 // This is a simplified check and may not cover all edge cases of Renju rules,
 // but it provides a solid foundation for 3-3 and 4-4 detection.
@@ -20,11 +18,12 @@ const inBounds = (r: number, c: number) => r >= 0 && r < BOARD_SIZE && c >= 0 &&
  * @returns A string representing the 6 cells in the line (X for player, O for opponent, _ for empty)
  */
 const getLine = (board: (Player | null)[][], r: number, c: number, dr: number, dc: number, player: Player): string => {
+    const BOARD_SIZE = board.length;
     let line = '';
     for (let i = -1; i < 5; i++) { // Check a 6-cell window starting from one behind
         const cr = r + i * dr;
         const cc = c + i * dc;
-        if (!inBounds(cr, cc)) {
+        if (!inBounds(cr, cc, BOARD_SIZE)) {
             line += 'E'; // Edge of board
         } else {
             const cell = board[cr][cc];
@@ -101,6 +100,7 @@ export const findForbiddenMoves = (board: (Player | null)[][], player: Player): 
 
     const forbidden: {row: number, col: number}[] = [];
 
+    const BOARD_SIZE = board.length;
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             if (board[r][c] === null) { // Only check empty cells

@@ -21,9 +21,10 @@ const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
         const x = event.clientX - rect.left - paddingLeft;
         const y = event.clientY - rect.top - paddingTop;
         if (x < 0 || x > gridWidth || y < 0 || y > gridHeight) return;
-        const row = Math.round((y / gridHeight) * (19 - 1));
-        const col = Math.round((x / gridWidth) * (19 - 1));
-        if (row < 0 || row >= 19 || col < 0 || col >= 19) return;
+        const size = state.board?.length || 15;
+        const row = Math.round((y / gridHeight) * (size - 1));
+        const col = Math.round((x / gridWidth) * (size - 1));
+        if (row < 0 || row >= size || col < 0 || col >= size) return;
 
         if (state.isWhatIfMode) {
             dispatch({ type: 'PLACE_WHAT_IF_STONE', payload: { row, col } });

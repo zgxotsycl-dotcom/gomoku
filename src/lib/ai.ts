@@ -11,7 +11,7 @@ export type Player = 'black' | 'white';
 export type PolicyData = { move: [number, number], visits: number };
 
 // --- Constants ---
-const BOARD_SIZE = 19;
+function getBoardSize(board: (Player | null)[][]): number { return board.length; }
 
 // --- Helper Functions ---
 
@@ -39,6 +39,7 @@ export function checkWin(board: (Player | null)[][], player: Player, move: [numb
 }
 
 function boardToInputTensor(board: (Player | null)[][], player: Player): tf.Tensor4D {
+    const BOARD_SIZE = getBoardSize(board);
     const opponent = player === 'black' ? 'white' : 'black';
     const playerChannel = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
     const opponentChannel = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
@@ -60,6 +61,7 @@ function boardToInputTensor(board: (Player | null)[][], player: Player): tf.Tens
 }
 
 export function getPossibleMoves(board: (Player | null)[][], radius = 1): [number, number][] {
+    const BOARD_SIZE = getBoardSize(board);
     const moves: Set<string> = new Set();
     let hasStones = false;
     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -151,7 +153,7 @@ export async function findBestMoveNN(model: tf.LayersModel, board: (Player | nul
     let simulationCount = 0;
     while (Date.now() - startTime < timeLimit) {
         const currentBoard = board.map(row => [...row]);
-        let node = root;
+    let node = root;
 
         while (Object.keys(node.children).length > 0) {
             node = node.selectChild();

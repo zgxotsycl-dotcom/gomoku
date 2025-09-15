@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Player, Move } from '../types';
 
-const BOARD_SIZE = 19;
+const getSize = (board: (Player | null)[][]) => board.length || 15;
 
 interface GameBoardProps {
     board: (Player | null)[][];
@@ -32,11 +32,27 @@ export const GameBoard = ({
     forbiddenMoves,
     isWinningShake, // Destructure new prop
 }: GameBoardProps) => {
+    const BOARD_SIZE = getSize(board);
     const isWinningStone = (row: number, col: number) => winningLine?.some(stone => stone.row === row && stone.col === col) || false;
     const isLastMove = (row: number, col: number) => {
         if (!lastMove) return false;
         return lastMove.row === row && lastMove.col === col;
     };
+
+    const starPoints = (() => {
+        if (BOARD_SIZE === 15) {
+            const pts = [3, 7, 11];
+            return [
+                [pts[0], pts[0]], [pts[0], pts[2]], [pts[1], pts[1]], [pts[2], pts[0]], [pts[2], pts[2]],
+            ];
+        } else if (BOARD_SIZE === 19) {
+            const pts = [3, 9, 15];
+            const arr: [number, number][] = [];
+            for (const r of pts) for (const c of pts) arr.push([r, c]);
+            return arr;
+        }
+        return [] as [number, number][];
+    })();
 
     return (
         <div className={`relative ${isWinningShake ? 'animate-board-shake' : ''}`} style={{ width: '64vmin', height: '64vmin' }}>
@@ -51,6 +67,21 @@ export const GameBoard = ({
                     <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
                         {Array.from({ length: BOARD_SIZE }).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{ left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%' }}></div>)}
                         {Array.from({ length: BOARD_SIZE }).map((_, i) => <div key={`h-${i}`} className="goboard-line absolute" style={{ top: `${(i / (BOARD_SIZE - 1)) * 100}%`, left: 0, height: '1px', width: '100%' }}></div>)}
+                    </div>
+                    {/* Star points */}
+                    <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
+                        {starPoints.map(([r, c], idx) => {
+                            const dot = `calc(100% / ${BOARD_SIZE} * 0.25)`;
+                            return (
+                                <div key={`star-${idx}`} className="absolute rounded-full bg-black/60"
+                                     style={{
+                                         top: `calc(${(r / (BOARD_SIZE - 1)) * 100}% - (${dot} / 2))`,
+                                         left: `calc(${(c / (BOARD_SIZE - 1)) * 100}% - (${dot} / 2))`,
+                                         width: dot,
+                                         height: dot,
+                                     }} />
+                            );
+                        })}
                     </div>
                     {/* Stones are drawn on another transparent overlay inside the grid */}
                     <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
