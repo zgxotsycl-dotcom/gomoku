@@ -1,7 +1,7 @@
 type Player = 'black' | 'white';
 
 const HASH_WINDOW_SIZE = 3; // Looks at a 7x7 window (3 cells in each direction)
-const BOARD_SIZE_HASH = 19;
+const BOARD_SIZE_HASH = 15;
 
 function getPattern(board: (Player | null)[][], r: number, c: number, player: Player): number[][] {
     const pattern = [];

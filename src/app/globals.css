@@ -32,6 +32,39 @@
   background-position: 0px 0px, 4px 4px, 2px 2px, 6px 6px;
 }
 
+/* AI anticipation background for mode selection */
+@keyframes node-float {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0.35; }
+  50% { transform: translateY(-22px) translateX(10px) scale(1.05); opacity: 0.6; }
+  100% { transform: translateY(0) translateX(0) scale(1); opacity: 0.35; }
+}
+@keyframes connector-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.5; }
+}
+.ai-anticipation {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.ai-node {
+  position: absolute;
+  width: 180px; height: 180px;
+  border-radius: 9999px;
+  filter: blur(16px);
+  background: radial-gradient(circle at 30% 30%, rgba(0,255,200,0.5), rgba(0,0,0,0));
+  animation: node-float 7s ease-in-out infinite;
+}
+.ai-node.n1 { top: 15%; left: 12%; background: radial-gradient(circle at 40% 40%, rgba(0,255,200,0.45), rgba(0,0,0,0)); animation-delay: 0s; }
+.ai-node.n2 { top: 28%; right: 18%; background: radial-gradient(circle at 60% 60%, rgba(0,150,255,0.5), rgba(0,0,0,0)); animation-delay: .8s; }
+.ai-node.n3 { bottom: 18%; left: 20%; background: radial-gradient(circle at 50% 60%, rgba(255,80,220,0.45), rgba(0,0,0,0)); animation-delay: 1.2s; }
+.ai-node.n4 { bottom: 22%; right: 24%; background: radial-gradient(circle at 40% 50%, rgba(255,200,80,0.45), rgba(0,0,0,0)); animation-delay: .4s; }
+.ai-node.n5 { top: 46%; left: 46%; width: 240px; height: 240px; background: radial-gradient(circle at 50% 50%, rgba(120,220,255,0.35), rgba(0,0,0,0)); animation-delay: 1.6s; }
+.ai-connector { position: absolute; height: 2px; background: linear-gradient(90deg, rgba(0,255,200,0), rgba(0,255,200,0.6), rgba(0,255,200,0)); filter: blur(1px); animation: connector-pulse 2.4s ease-in-out infinite; }
+.ai-connector.c1 { top: 30%; left: 15%; width: 30%; }
+.ai-connector.c2 { top: 55%; left: 25%; width: 40%; animation-delay: .6s; }
+.ai-connector.c3 { top: 40%; left: 50%; width: 30%; animation-delay: 1.1s; }
+
 /* Chroma Nebula Animation Background */
 @keyframes flow-nebula {
   0% {
@@ -239,6 +272,17 @@
   transform: scale(1.05);
 }
 
+/* ColorSelect subtle pulse */
+@keyframes soft-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.12); }
+  70% { box-shadow: 0 0 0 12px rgba(255,255,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+
+.soft-pulse {
+  animation: soft-pulse 1.8s ease-out infinite;
+}
+
 @keyframes dynamic-pop {
   0% {
     opacity: 0;
@@ -383,3 +427,33 @@
 .animate-chroma-shine {
   animation: chroma-shine 2s linear infinite;
 }
+
+/* Distinctive start animation */
+@keyframes board-swoop {
+  0% { transform: perspective(800px) translateY(10px) scale(0.94) rotateX(2deg) rotateZ(-0.4deg); opacity: 0.7; }
+  60% { transform: perspective(800px) translateY(-2px) scale(1.02) rotateX(0.4deg) rotateZ(0deg); opacity: 1; }
+  100% { transform: perspective(800px) translateY(0) scale(1) rotateX(0deg) rotateZ(0deg); opacity: 1; }
+}
+.start-swoop {
+  animation: board-swoop 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes glow-sweep {
+  0% { left: -60%; opacity: 0.0; }
+  10% { opacity: 0.22; }
+  50% { opacity: 0.18; }
+  100% { left: 160%; opacity: 0.0; }
+}
+.glow-sweep {
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(105deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 100%);
+  filter: blur(3px);
+  animation: glow-sweep 900ms ease-out forwards;
+  pointer-events: none;
+}
+
+/* DifficultySelect specifics could reuse existing classes; no extra CSS needed now */

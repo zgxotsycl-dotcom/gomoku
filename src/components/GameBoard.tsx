@@ -16,6 +16,7 @@ interface GameBoardProps {
     winningLine: { row: number; col: number }[] | null;
     forbiddenMoves: { row: number; col: number }[];
     isWinningShake: boolean; // Add new prop
+    startAnimKey?: number;
 }
 
 export const GameBoard = ({
@@ -31,6 +32,7 @@ export const GameBoard = ({
     winningLine,
     forbiddenMoves,
     isWinningShake, // Destructure new prop
+    startAnimKey = 0,
 }: GameBoardProps) => {
     const BOARD_SIZE = getSize(board);
     const isWinningStone = (row: number, col: number) => winningLine?.some(stone => stone.row === row && stone.col === col) || false;
@@ -61,8 +63,10 @@ export const GameBoard = ({
                 {/* The interactive grid area */}
                 <div
                     onClick={handleBoardClick}
-                    className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm ${(startAnimKey>0?'start-swoop ':'')}${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 >
+                    {/* Opening glow sweep overlay */}
+                    <div key={`glow-${startAnimKey}`} className="glow-sweep" />
                     {/* Lines are drawn on a transparent overlay inside the grid */}
                     <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
                         {Array.from({ length: BOARD_SIZE }).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{ left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%' }}></div>)}

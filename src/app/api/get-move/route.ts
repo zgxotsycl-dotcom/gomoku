@@ -4,7 +4,8 @@ export async function POST(request: Request) {
   const body = await request.json();
 
   try {
-    const aiServerUrl = 'https://ai.omokk.com/get-move';
+    const base = process.env.NEXT_PUBLIC_AI_BASE_URL || 'https://ai.omokk.com';
+    const aiServerUrl = base + '/get-move';
 
     const response = await fetch(aiServerUrl, {
       method: 'POST',

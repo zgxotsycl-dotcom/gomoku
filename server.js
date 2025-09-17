@@ -30,6 +30,34 @@ const BASE_TURN_DURATION = 5000; // 5 seconds
 const INCREMENT = 1000; // 1 second
 const MAX_TURN_DURATION = 30000; // 30 seconds
 
+// --- Swap2 helper (server-side simple proposer) ---
+function createEmptyBoard(size) {
+  return Array.from({ length: size }, () => Array(size).fill(null));
+}
+function firstEmptyAround(board, r0, c0, rings = 2) {
+  const n = board.length;
+  for (let rad = 1; rad <= rings; rad++) {
+    for (let dr = -rad; dr <= rad; dr++) {
+      for (let dc = -rad; dc <= rad; dc++) {
+        const r = r0 + dr, c = c0 + dc;
+        if (r >= 0 && c >= 0 && r < n && c < n && board[r][c] == null) return [r, c];
+      }
+    }
+  }
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (board[r][c] == null) return [r, c];
+  return [-1, -1];
+}
+function proposeInitialTripleServer(size = 15) {
+  const mid = Math.floor(size / 2);
+  const b = createEmptyBoard(size);
+  b[mid][mid] = 'black';
+  let [wr, wc] = firstEmptyAround(b, mid, mid, 1);
+  if (wr !== -1) b[wr][wc] = 'white';
+  let [br, bc] = firstEmptyAround(b, mid, mid, 1);
+  if (br !== -1) b[br][bc] = 'black';
+  return { board: b, toMove: 'white' };
+}
+
 // --- Helper Functions ---
 const startTurnTimer = (roomId) => {
   const room = rooms[roomId];
@@ -52,6 +80,32 @@ const startTurnTimer = (roomId) => {
     room.gameState = 'post-game';
     io.to(roomId).emit('game-over-update', { winner: winnerRole, reason: 'timeout' });
     console.log(`Game over in room ${roomId}. Winner by timeout: ${winnerRole}`);
+    // ELO update on timeout (treat as standard win/loss)
+    try {
+      const players = Object.values(room.players);
+      const black = players.find(p => p.role === 'black');
+      const white = players.find(p => p.role === 'white');
+      if (black && white && !room.isPrivate) {
+        const getProfile = async (id) => {
+          const { data } = await supabase.from('profiles').select('elo_rating').eq('id', id).single();
+          return (data && data.elo_rating) || 1200;
+        };
+        const rb = await getProfile(black.id);
+        const rw = await getProfile(white.id);
+        const K = 32;
+        const expected = (ra, rb) => 1 / (1 + Math.pow(10, (rb - ra) / 400));
+        const sb = winnerRole === 'black' ? 1 : 0;
+        const sw = winnerRole === 'white' ? 1 : 0;
+        const rb_new = Math.round(rb + K * (sb - expected(rb, rw)));
+        const rw_new = Math.round(rw + K * (sw - expected(rw, rb)));
+        await Promise.all([
+          supabase.from('profiles').update({ elo_rating: rb_new }).eq('id', black.id),
+          supabase.from('profiles').update({ elo_rating: rw_new }).eq('id', white.id),
+        ]);
+      }
+    } catch (e) {
+      console.error('ELO update (timeout) failed:', e);
+    }
 
     if (!room.isPrivate) {
       const { error } = await supabase.from('active_games').delete().eq('room_id', roomId);
@@ -135,7 +189,9 @@ io.on('connection', (socket) => {
         player1Socket.emit('assign-role', 'black');
         player2Socket.emit('assign-role', 'white');
 
-        io.to(roomId).emit('game-start', { roomId, players: rooms[roomId].players });
+        // Swap2: propose initial triple for online public match (no UI negotiation here)
+        const opening = proposeInitialTripleServer(15);
+        io.to(roomId).emit('game-start', { roomId, players: rooms[roomId].players, openingBoard: opening.board, openingToMove: opening.toMove });
         console.log(`Public game starting for ${player1.profile.username} and ${player2.profile.username} in room ${roomId}`);
         startTurnTimer(roomId);
         
@@ -232,6 +288,36 @@ io.on('connection', (socket) => {
     room.gameState = 'post-game';
     io.to(data.roomId).emit('game-over-update', { winner: data.winner });
     console.log(`Game over in room ${data.roomId}. Winner: ${data.winner}`);
+
+    // ELO update for online public matches (pvo)
+    try {
+      const players = Object.values(room.players);
+      const black = players.find(p => p.role === 'black');
+      const white = players.find(p => p.role === 'white');
+      const enoughMoves = (room.moveCount || 0) >= MIN_MOVES_FOR_ELO;
+      if (black && white && !room.isPrivate && black.id !== white.id && enoughMoves) {
+        const getProfile = async (id) => {
+          const { data } = await supabase.from('profiles').select('elo_rating').eq('id', id).single();
+          return (data && data.elo_rating) || 1200;
+        };
+        const rb = await getProfile(black.id);
+        const rw = await getProfile(white.id);
+        const K = 32;
+        const expected = (ra, rb) => 1 / (1 + Math.pow(10, (rb - ra) / 400));
+        // winner score 1, loser 0
+        const winnerRole = data.winner; // 'black' | 'white'
+        const sb = winnerRole === 'black' ? 1 : 0;
+        const sw = winnerRole === 'white' ? 1 : 0;
+        const rb_new = Math.max(0, Math.round(rb + K * (sb - expected(rb, rw))));
+        const rw_new = Math.max(0, Math.round(rw + K * (sw - expected(rw, rb))));
+        await Promise.all([
+          supabase.from('profiles').update({ elo_rating: rb_new }).eq('id', black.id),
+          supabase.from('profiles').update({ elo_rating: rw_new }).eq('id', white.id),
+        ]);
+      }
+    } catch (e) {
+      console.error('ELO update failed:', e);
+    }
 
     if (!room.isPrivate) {
       const { error } = await supabase.from('active_games').delete().eq('room_id', data.roomId);

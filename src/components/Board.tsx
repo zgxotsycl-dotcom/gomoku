@@ -8,6 +8,9 @@ import GameArea from './GameArea';
 import PvaBackground from './PvaBackground';
 import PlayerBanner from './PlayerBanner'; // Import PlayerBanner
 import type { GameMode, Game } from '../types';
+import ColorSelect from './ColorSelect';
+import { useEffect } from 'react';
+import Script from 'next/script';
 
 const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -58,8 +61,41 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     }
     // TODO: Add logic for PVO profiles
 
+    const onChooseColor = async (color: 'black' | 'white') => {
+        try {
+            if (color === 'black') {
+                // Human is Black (first). Second(=AI) chooses best option.
+                const resp = await fetch('/api/swap2/second', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ board: state.board }),
+                });
+                if (!resp.ok) throw new Error(`Swap2(second) failed: ${resp.status}`);
+                const data = await resp.json();
+                let aiColor: 'black' | 'white' = 'white';
+                if (data?.swapColors) aiColor = 'black';
+                dispatch({ type: 'APPLY_OPENING', payload: { board: data.board, toMove: data.toMove, aiPlayer: aiColor } });
+            } else {
+                // Human is White (second). Propose B-W-B and let human add extra white move (option 2 simplified).
+                const resp = await fetch('/api/swap2/propose', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ board: state.board }),
+                });
+                if (!resp.ok) throw new Error(`Swap2(propose) failed: ${resp.status}`);
+                const data = await resp.json();
+                dispatch({ type: 'APPLY_OPENING', payload: { board: data.board, toMove: data.toMove, aiPlayer: 'black', pendingWhiteExtra: true } });
+            }
+        } catch (e) {
+            console.error('Swap2 setup failed:', e);
+        } finally {
+            dispatch({ type: 'HIDE_COLOR_SELECT' });
+        }
+    };
+
     return (
         <>
+            <ColorSelect visible={state.gameMode === 'pva' && state.difficulty === 'normal' && state.showColorSelect && state.history.length === 0} onSelect={onChooseColor} />
             {state.gameMode === 'pva' && <PvaBackground />}
             <div className="w-full h-full relative">
                 <div className="fixed top-4 left-4 z-50">
@@ -68,6 +104,23 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
                     </button>
                 </div>
                 <div className="flex flex-col items-center w-full h-full pt-6">
+                    {/* Apply online opening payload if present */}
+                    {state.gameMode === 'pvo' && state.history.length === 0 && (
+                        <Script id="apply-opening" strategy="afterInteractive">
+                          {`
+                          (function(){
+                            try {
+                              const raw = sessionStorage.getItem('openingBoard');
+                              if (raw) {
+                                const data = JSON.parse(raw);
+                                window.dispatchEvent(new CustomEvent('apply-opening', { detail: data }));
+                                sessionStorage.removeItem('openingBoard');
+                              }
+                            } catch(_){}
+                          })();
+                          `}
+                        </Script>
+                    )}
                     {/* Player Banners */}
                     {state.gameMode === 'pva' && (
                         <PlayerBanner 
@@ -113,3 +166,31 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 }
 
 export default Board;
+    // Listen for online opening application event
+    useEffect(() => {
+        const handler = (e: any) => {
+            const data = e?.detail;
+            if (!data || !data.board) return;
+            dispatch({ type: 'APPLY_OPENING', payload: { board: data.board, toMove: data.toMove || 'white' } });
+        };
+        if (typeof window !== 'undefined') window.addEventListener('apply-opening', handler as any);
+        return () => { if (typeof window !== 'undefined') window.removeEventListener('apply-opening', handler as any); };
+    }, [dispatch, state.gameMode]);
+
+    // Initialize difficulty from mode selection (sessionStorage), and open ColorSelect if normal
+    useEffect(() => {
+        if (state.gameMode !== 'pva' || state.history.length !== 0) return;
+        try {
+            const raw = sessionStorage.getItem('pva_difficulty');
+            if (!raw) return;
+            sessionStorage.removeItem('pva_difficulty');
+            if (raw === 'easy') {
+                dispatch({ type: 'SET_DIFFICULTY', payload: 'easy' });
+                dispatch({ type: 'SET_AI_PLAYER', payload: 'white' }); // user black
+                dispatch({ type: 'TRIGGER_START_ANIM' });
+            } else if (raw === 'normal') {
+                dispatch({ type: 'SET_DIFFICULTY', payload: 'normal' });
+                dispatch({ type: 'SHOW_COLOR_SELECT' });
+            }
+        } catch {}
+    }, [dispatch, state.gameMode, state.history.length]);

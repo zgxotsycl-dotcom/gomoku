@@ -44,7 +44,7 @@ exports.getPossibleMoves = getPossibleMoves;
 exports.findBestMoveNN = findBestMoveNN;
 const tf = __importStar(require("@tensorflow/tfjs-node"));
 // --- Constants ---
-const BOARD_SIZE = 19;
+const BOARD_SIZE = 15;
 // --- Helper Functions ---
 function getOpponent(player) {
     return player === 'black' ? 'white' : 'black';

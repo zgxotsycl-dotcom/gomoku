@@ -60,6 +60,7 @@ const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
                 winningLine={state.isWhatIfMode ? state.whatIfWinningLine : state.winningLine}
                 forbiddenMoves={state.forbiddenMoves}
                 isWinningShake={state.isWinningShake}
+                startAnimKey={state.startAnimKey}
             />
 
             <div className="mt-4 flex flex-col items-center gap-2">

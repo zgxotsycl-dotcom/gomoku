@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import Script from 'next/script';
 
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import DifficultySelect from '@/components/DifficultySelect';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 
@@ -74,6 +75,7 @@ export default function Home() {
   const [inQueueUsers, setInQueueUsers] = useState(0);
   const [room, setRoom] = useState<string | null>(null);
   const [showRoomCodeModal, setShowRoomCodeModal] = useState(false);
+  const [showPvaDifficulty, setShowPvaDifficulty] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -102,6 +104,12 @@ export default function Home() {
         setRoom(gameData.roomId);
         setSelectedGameMode('pvo');
         setShowRoomCodeModal(false);
+        // Store opening payload in sessionStorage to pass to Board via a transient state
+        if (gameData.openingBoard && Array.isArray(gameData.openingBoard)) {
+          try {
+            sessionStorage.setItem('openingBoard', JSON.stringify({ board: gameData.openingBoard, toMove: gameData.openingToMove || 'white' }));
+          } catch {}
+        }
     });
 
     socket.on('room-created', (roomId) => {
@@ -221,7 +229,7 @@ export default function Home() {
             </h1>
             <h2 className="text-3xl text-white mb-6">{t('SelectGameMode')}</h2>
             <div className="flex flex-col sm:flex-row gap-4">
-              <button onClick={() => setSelectedGameMode('pva')} className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-xl
+              <button onClick={() => setShowPvaDifficulty(true)} className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-xl
 btn-hover-scale">
                 {t('PvsAI')}
               </button>
@@ -279,6 +287,34 @@ btn-hover-scale">
         />
       </main>
     )}
+    {/* Dynamic AI anticipation background for the mode selection screen */}
+    {!selectedGameMode && (
+      <div className="pointer-events-none fixed inset-0 -z-0">
+        <div className="ai-anticipation">
+          <div className="ai-node n1" />
+          <div className="ai-node n2" />
+          <div className="ai-node n3" />
+          <div className="ai-node n4" />
+          <div className="ai-node n5" />
+          <div className="ai-connector c1" />
+          <div className="ai-connector c2" />
+          <div className="ai-connector c3" />
+        </div>
+      </div>
+    )}
+
+    {/* Difficulty select for P vs AI before entering the board */}
+    {showPvaDifficulty && (
+      <DifficultySelect
+        visible={true}
+        onSelect={(d) => {
+          try { sessionStorage.setItem('pva_difficulty', d); } catch {}
+          setShowPvaDifficulty(false);
+          setSelectedGameMode('pva');
+        }}
+      />
+    )}
+
     {showLoginModal && (
       <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
         <div className="bg-gray-800 p-8 rounded-lg shadow-xl relative">

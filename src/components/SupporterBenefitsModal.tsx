@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabaseClient';
 import { FaStar, FaPalette, FaHistory, FaBrain, FaBan, FaTrophy } from 'react-icons/fa';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SupporterBenefitsModalProps {
   isOpen: boolean;
@@ -12,6 +13,9 @@ interface SupporterBenefitsModalProps {
 
 const SupporterBenefitsModal = ({ isOpen, onClose, isGuest, user }: SupporterBenefitsModalProps) => {
   const { t } = useTranslation();
+  const { updateProfile } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   if (!isOpen) return null;
 
   const benefits = [
@@ -29,6 +33,30 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest, user }: SupporterBen
   };
 
   const gumroadLink = `https://3614751670147.gumroad.com/l/tkdjxl?user_id=${user?.id}`;
+
+  const handleRefreshProfile = async () => {
+    if (!user?.id) return;
+    try {
+      setRefreshing(true);
+      setRefreshMsg(null);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (error) throw error;
+      updateProfile(data as any);
+      if ((data as any)?.is_supporter) {
+        setRefreshMsg(t('SupporterActivated', 'Supporter benefits are now active!'));
+      } else {
+        setRefreshMsg(t('SupporterNotYet', 'Payment detected soon. Please try again in a moment.'));
+      }
+    } catch (e) {
+      setRefreshMsg(t('RefreshFailed', 'Failed to refresh profile. Please try again.'));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
@@ -65,6 +93,16 @@ const SupporterBenefitsModal = ({ isOpen, onClose, isGuest, user }: SupporterBen
               >
                 {t('Pay with Card (Gumroad)')}
               </a>
+              <button
+                onClick={handleRefreshProfile}
+                disabled={refreshing}
+                className="mt-3 block w-full max-w-xs mx-auto px-8 py-3 bg-gray-700 text-white rounded-md hover:bg-gray-600 text-sm btn-hover-scale disabled:opacity-60"
+              >
+                {refreshing ? t('Refreshing...', 'Refreshing...') : t('PaidRefreshProfile', 'I Paid — Refresh Profile')}
+              </button>
+              {refreshMsg && (
+                <p className="mt-2 text-center text-sm text-gray-300">{refreshMsg}</p>
+              )}
             </div>
           )}
           <button onClick={onClose} className="mt-4 text-sm text-gray-400 hover:underline btn-hover-scale">{t('MaybeLater')}</button>

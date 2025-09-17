@@ -59,6 +59,7 @@ const initialState = {
     startTime: null as number | null,
     gameDuration: "",
     aiPlayer: 'white' as Player,
+    difficulty: 'normal' as 'easy' | 'normal',
     isPrivateGame: false,
     room: '',
     playerRole: null as Player | null,
@@ -85,6 +86,9 @@ const initialState = {
     whatIfWinningLine: null as {row: number, col: number}[] | null,
     whatIfLastMove: null as Move | null,
     isWinningShake: false, // ADDED
+    showColorSelect: false as boolean,
+    pendingOpening: 'none' as 'none' | 'white_extra',
+    startAnimKey: 0,
 };
 
 type Action =
@@ -92,6 +96,7 @@ type Action =
     | { type: 'AI_MOVE', payload: { row: number, col: number } }
     | { type: 'RESET_GAME', payload?: { gameMode?: GameMode, isPrivate?: boolean } }
     | { type: 'SET_BOARD', payload: (Player | null)[][] }
+    | { type: 'APPLY_OPENING', payload: { board: (Player|null)[][], toMove: Player, aiPlayer?: Player, pendingWhiteExtra?: boolean } }
     | { type: 'SET_GAME_MODE', payload: GameMode }
     | { type: 'SET_GAME_STATE', payload: GameState }
     | { type: 'SET_WINNER', payload: { winner: Player, line: {row: number, col: number}[] } }
@@ -106,7 +111,10 @@ type Action =
     | { type: 'SET_REPLAY_INDEX', payload: number }
     | { type: 'SET_IS_REPLAYING', payload: boolean }
     | { type: 'TICK_TIMER' }
-    | { type: 'STOP_WIN_ANIMATION' }; // ADDED
+    | { type: 'STOP_WIN_ANIMATION' } // ADDED
+    | { type: 'SHOW_COLOR_SELECT' }
+    | { type: 'HIDE_COLOR_SELECT' }
+    | { type: 'TRIGGER_START_ANIM' };
 
 function gomokuReducer(state: typeof initialState, action: Action): typeof initialState {
     switch (action.type) {
@@ -114,6 +122,27 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
             return { ...state, isWinningShake: false };
         case 'SET_BOARD':
             return { ...state, board: action.payload };
+        case 'APPLY_OPENING': {
+            const next = action.payload.toMove;
+            const ai = action.payload.aiPlayer ?? state.aiPlayer;
+            return {
+                ...state,
+                board: action.payload.board,
+                currentPlayer: next,
+                aiPlayer: ai,
+                startAnimKey: state.startAnimKey + 1,
+                pendingOpening: action.payload.pendingWhiteExtra ? 'white_extra' : 'none',
+                forbiddenMoves: next === 'white' ? findForbiddenMoves(action.payload.board, 'black') : [],
+            };
+        }
+        case 'TRIGGER_START_ANIM':
+            return { ...state, startAnimKey: state.startAnimKey + 1 };
+        case 'SHOW_COLOR_SELECT':
+            return { ...state, showColorSelect: true };
+        case 'HIDE_COLOR_SELECT':
+            return { ...state, showColorSelect: false };
+        case 'SET_DIFFICULTY':
+            return { ...state, difficulty: action.payload };
         case 'SET_HISTORY':
             return { ...state, history: action.payload };
         case 'SET_GAME_STATE':
@@ -221,6 +250,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 forbiddenMoves: player === 'white' ? findForbiddenMoves(newBoard, 'black') : [],
                 turnTimeLimit: newTurnTimeLimit,
                 turnTimeRemaining: newTurnTimeLimit,
+                pendingOpening: state.pendingOpening === 'white_extra' && player === 'white' ? 'none' : state.pendingOpening,
             };
         }
         case 'RESET_GAME': {
@@ -235,6 +265,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 turnTimeLimit: BASE_TURN_TIME,
                 turnTimeRemaining: BASE_TURN_TIME,
                 aiKnowledge: state.aiKnowledge, // Preserve loaded knowledge
+                showColorSelect: gameMode === 'pva',
             };
         }
         case 'SET_AI_PLAYER':
@@ -317,6 +348,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     const { t } = useTranslation();
     const { user } = useAuth();
     const [isGameSaved, setIsGameSaved] = useState(false);
+    const [eloUpdated, setEloUpdated] = useState(false);
     const aiWorkerRef = useRef<Worker | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -373,6 +405,27 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         saveGame();
     }, [state.gameState, isGameSaved, user, state.gameMode, state.history, state.winner, replayGame]);
 
+    // ELO Update for PVA (normal difficulty): win +30, lose -29
+    useEffect(() => {
+        const applyPvaElo = async () => {
+            if (eloUpdated) return;
+            if (state.gameState !== 'post-game') return;
+            if (!user) return;
+            if (state.gameMode !== 'pva') return;
+            if (state.difficulty !== 'normal') return;
+            const userColor: Player = state.aiPlayer === 'white' ? 'black' : 'white';
+            const win = state.winner === userColor;
+            const delta = win ? 30 : -29;
+            // fetch current, then update to avoid race
+            const { data } = await supabase.from('profiles').select('elo_rating').eq('id', user.id).single();
+            const current = (data && (data as any).elo_rating) || 1200;
+            const next = Math.max(0, current + delta);
+            await supabase.from('profiles').update({ elo_rating: next }).eq('id', user.id);
+            setEloUpdated(true);
+        };
+        applyPvaElo();
+    }, [state.gameState, state.gameMode, state.difficulty, state.winner, state.aiPlayer, user, eloUpdated]);
+
     // Replay board update logic
     useEffect(() => {
         if (state.gameState === 'replay') {
@@ -427,7 +480,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         };
     }, [state.currentPlayer, state.gameState, state.winner, state.gameMode]);
 
-    // AI Turn Logic (Now using external AI server)
+    // AI Turn Logic (Now using external AI server) with strict deadline protection
     useEffect(() => {
         const getAiMoveFromServer = async () => {
             if (state.gameMode !== 'pva' || state.currentPlayer !== state.aiPlayer || state.winner || state.gameState !== 'playing' || state.isAiThinking) {
@@ -437,43 +490,127 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             dispatch({ type: 'SET_AI_THINKING', payload: true });
 
             try {
-                const response = await fetch('/api/get-move', {
+                // Compute a strict safe budget so AI always replies before our turn timer expires
+                // Normal = full-power AI under turn timer: give it almost all remaining time
+                const bufferMs = 200; // safety margin for network/processing
+                const easy = state.difficulty === 'easy';
+                const safeRemain = Math.max(500, (state.turnTimeRemaining || 0) - bufferMs);
+                const maxThink = easy ? 1000 : Math.max(800, safeRemain);
+
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), Math.max(300, maxThink + 150));
+
+                const payload = {
+                    board: state.board,
+                    player: state.currentPlayer,
+                    moves: state.history,
+                    timeLeftMs: maxThink,
+                    turnLimitMs: maxThink,
+                    turnEndsAt: Date.now() + maxThink,
+                    forceThinkTimeMs: easy ? 1000 : undefined,
+                };
+
+                const resp = await fetch('/api/get-move', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
                     },
-                    body: JSON.stringify({
-                        board: state.board,
-                        player: state.currentPlayer,
-                        moves: state.history,
-                        timeLeftMs: state.turnTimeRemaining,
-                        turnLimitMs: state.turnTimeLimit,
-                        turnEndsAt: Date.now() + state.turnTimeRemaining,
-                    }),
+                    body: JSON.stringify(payload),
+                    signal: controller.signal,
                 });
+                clearTimeout(timeout);
 
-                if (!response.ok) {
-                    throw new Error(`AI server responded with status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                if (data.move) {
+                if (!resp.ok) throw new Error(`AI status ${resp.status}`);
+                const data = await resp.json();
+                if (data?.move && Number.isInteger(data.move[0]) && Number.isInteger(data.move[1])) {
                     dispatch({ type: 'AI_MOVE', payload: { row: data.move[0], col: data.move[1] } });
                 } else {
-                    throw new Error('Invalid response from AI server');
+                    throw new Error('Invalid AI response body');
                 }
 
             } catch (error) {
                 console.error("Error fetching AI move:", error);
-                toast.error('Could not connect to AI server.');
-                dispatch({ type: 'SET_AI_THINKING', payload: false });
+                // Fallback: choose a smarter local heuristic move to avoid flag-fall
+                try {
+                    const size = state.board.length || 15;
+                    const board = state.board;
+                    const me: Player = state.currentPlayer;
+                    const opp: Player = me === 'black' ? 'white' : 'black';
+
+                    const emptyMoves: { r:number; c:number }[] = [];
+                    for (let r=0;r<size;r++) for (let c=0;c<size;c++) if (!board[r][c]) emptyMoves.push({r,c});
+
+                    const checkWinMove = (r:number,c:number,p:Player) => {
+                        board[r][c] = p;
+                        const win = !!checkWin(board, p, r, c);
+                        board[r][c] = null;
+                        return win;
+                    };
+
+                    // 1) Immediate win
+                    for (const m of emptyMoves) if (checkWinMove(m.r, m.c, me)) {
+                        dispatch({ type: 'AI_MOVE', payload: { row: m.r, col: m.c } }); return;
+                    }
+                    // 2) Immediate block
+                    for (const m of emptyMoves) if (checkWinMove(m.r, m.c, opp)) {
+                        dispatch({ type: 'AI_MOVE', payload: { row: m.r, col: m.c } }); return;
+                    }
+
+                    // 3) Heuristic: prefer moves that extend lines with open ends; slight center bias
+                    const dirs = [ [1,0],[0,1],[1,1],[1,-1] ] as const;
+                    const center = Math.floor(size/2);
+                    function lineScore(r:number,c:number,p:Player){
+                        let best = 0;
+                        for (const [dx,dy] of dirs){
+                            let cnt1=0, rr=r+dy, cc=c+dx;
+                            while(rr>=0&&cc>=0&&rr<size&&cc<size&&board[rr][cc]===p){cnt1++; rr+=dy; cc+=dx;}
+                            const open1 = (rr>=0&&cc>=0&&rr<size&&cc<size&&board[rr][cc]==null)?1:0;
+                            let cnt2=0; rr=r-dy; cc=c-dx;
+                            while(rr>=0&&cc>=0&&rr<size&&cc<size&&board[rr][cc]===p){cnt2++; rr-=dy; cc-=dx;}
+                            const open2 = (rr>=0&&cc>=0&&rr<size&&cc<size&&board[rr][cc]==null)?1:0;
+                            const len = 1+cnt1+cnt2;
+                            const openEnds = open1+open2; // 0..2
+                            // score favors longer contiguous lines and open ends
+                            best = Math.max(best, len*10 + openEnds*3);
+                        }
+                        // slight center bias
+                        const dist = Math.abs(r-center)+Math.abs(c-center);
+                        return best - dist*0.2;
+                    }
+                    let bestMove = null as { r:number; c:number; s:number } | null;
+                    for (const m of emptyMoves){
+                        // consider small ring around last move first
+                        const last = state.history[state.history.length-1];
+                        if (last && Math.abs(m.r-last.row)>2 && Math.abs(m.c-last.col)>2) continue;
+                        const sMe = lineScore(m.r,m.c,me);
+                        const sOpp = lineScore(m.r,m.c,opp)*0.8;
+                        const s = sMe + sOpp;
+                        if (!bestMove || s>bestMove.s) bestMove = { r:m.r, c:m.c, s };
+                    }
+                    if (!bestMove){
+                        // fallback to global scan
+                        for (const m of emptyMoves){
+                            const s = lineScore(m.r,m.c,me);
+                            if (!bestMove || s>bestMove.s) bestMove = { r:m.r, c:m.c, s };
+                        }
+                    }
+                    if (bestMove) dispatch({ type: 'AI_MOVE', payload: { row: bestMove.r, col: bestMove.c } });
+                    else {
+                        const mid = Math.floor(size/2);
+                        dispatch({ type: 'AI_MOVE', payload: { row: mid, col: mid } });
+                    }
+                } catch (e) {
+                    console.error('Fallback AI move failed:', e);
+                    toast.error('AI move timed out.');
+                    dispatch({ type: 'SET_AI_THINKING', payload: false });
+                }
             }
         };
 
         getAiMoveFromServer();
 
-    }, [state.currentPlayer, state.gameMode, state.aiPlayer, state.winner, state.gameState, state.board, dispatch]);
+    }, [state.currentPlayer, state.gameMode, state.aiPlayer, state.winner, state.gameState, state.board, state.turnTimeRemaining, state.turnTimeLimit, state.difficulty, dispatch]);
 
     // What If AI Turn Logic
     useEffect(() => {
@@ -487,19 +624,30 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         }
     }, [state.isWhatIfMode, state.whatIfPlayer, state.whatIfBoard, state.aiPlayer, state.isAiThinking, state.aiKnowledge]);
     
-    // Game Start Logic
+    // Game Start Logic (no automatic Swap2; PVA shows color select overlay)
     useEffect(() => {
         if (!replayGame && (initialGameMode === 'pva' || initialGameMode === 'pvp')) {
             dispatch({ type: 'RESET_GAME', payload: { gameMode: initialGameMode } });
         }
     }, [initialGameMode, replayGame]);
 
+    // Reset flags on new game
+    useEffect(() => {
+        if (state.gameState === 'playing') {
+            setEloUpdated(false);
+        }
+    }, [state.gameState]);
+
     // User Profile Fetching
     useEffect(() => {
         const fetchUserProfile = async () => {
             if (!user) return;
-            const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-            dispatch({ type: 'SET_USER_PROFILE', payload: data });
+            const { data } = await supabase
+              .from('profiles')
+              .select('id, username:nickname, elo_rating, is_supporter, nickname_color, badge_color, banner_color')
+              .eq('id', user.id)
+              .single();
+            dispatch({ type: 'SET_USER_PROFILE', payload: data as any });
         };
         fetchUserProfile();
     }, [user]);

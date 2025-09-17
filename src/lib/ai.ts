@@ -22,6 +22,7 @@ export function getOpponent(player: Player): Player {
 export function checkWin(board: (Player | null)[][], player: Player, move: [number, number]): boolean {
   if (!move || move[0] === -1) return false;
   const [r, c] = move;
+  const BOARD_SIZE = getBoardSize(board);
   const directions = [[[0, 1], [0, -1]], [[1, 0], [-1, 0]], [[1, 1], [-1, -1]], [[-1, 1], [1, -1]]];
   for (const dir of directions) {
     let count = 1;
@@ -55,9 +56,9 @@ function boardToInputTensor(board: (Player | null)[][], player: Player): tf.Tens
         tf.tensor2d(playerChannel),
         tf.tensor2d(opponentChannel),
         tf.tensor2d(colorChannel)
-    ], 2); // stack along the last axis to get shape [19, 19, 3]
+    ], 2); // stack along the last axis to get shape [N, N, 3]
 
-    return stackedChannels.expandDims(0) as tf.Tensor4D; // add batch dimension -> [1, 19, 19, 3]
+    return stackedChannels.expandDims(0) as tf.Tensor4D; // add batch dimension -> [1, N, N, 3]
 }
 
 export function getPossibleMoves(board: (Player | null)[][], radius = 1): [number, number][] {

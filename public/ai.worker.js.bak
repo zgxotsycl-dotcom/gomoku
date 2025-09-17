@@ -5,7 +5,7 @@ self.onmessage = async (e) => {
     const opponent = player === 'black' ? 'white' : 'black';
 
     // --- Configuration ---
-    const BOARD_SIZE = 19;
+    const BOARD_SIZE = 15;
     const MCTS_ITERATIONS = 3000;
     const MCTS_TIMEOUT = 10000;
     const C_PARAM = 1.414;

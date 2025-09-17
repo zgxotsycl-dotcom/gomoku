@@ -54,12 +54,12 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       const fetchProfile = async () => {
         const { data, error } = await supabase
           .from('profiles')
-          .select('username, nickname_color, badge_color, banner_color, is_supporter')
+          .select('nickname, nickname_color, badge_color, banner_color, is_supporter')
           .eq('id', user.id)
           .single();
         
         if (data) {
-          const currentUsername = data.username || '';
+          const currentUsername = (data as any).nickname || '';
           setUsername(currentUsername);
           validateUsername(currentUsername);
           setNicknameColor(data.nickname_color || '#FFFFFF');
@@ -75,19 +75,19 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     if (!user) return;
 
     if (!validateUsername(username)) {
-      toast.error(t('Please fix the errors before saving.'));
+      toast.error(t('FixErrorsBeforeSave', 'Please fix the errors before saving.'));
       return;
     }
 
     setLoading(true);
     
     const updateData: {
-        username: string;
+        nickname: string;
         nickname_color?: string;
         badge_color?: string;
         banner_color?: string;
     } = {
-        username: username,
+        nickname: username,
     };
 
     if (profile?.is_supporter) {
@@ -125,14 +125,14 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-              <FaUser /> {t('Nickname')}
+              <FaUser /> {t('Nickname', 'Nickname')}
             </label>
             <input 
               type="text" 
               value={username} 
               onChange={handleUsernameChange} 
               className={`w-full px-3 py-2 rounded bg-gray-700 text-white border ${usernameError ? 'border-red-500' : 'border-gray-600'} focus:ring-blue-500 focus:border-blue-500`}
-              placeholder="Enter your nickname"
+              placeholder={t('EnterYourNickname', 'Enter your nickname')}
             />
             {usernameError && <p className="text-red-500 text-xs mt-1">{usernameError}</p>}
           </div>
