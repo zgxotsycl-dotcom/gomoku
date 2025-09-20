@@ -120,6 +120,7 @@ class MCTSNodeNN {
     }
 
     expand(board: (Player | null)[][], policy: Float32Array): void {
+        const BOARD_SIZE = getBoardSize(board);
         const possibleMoves = getPossibleMoves(board);
         for (const move of possibleMoves) {
             const [r, c] = move;

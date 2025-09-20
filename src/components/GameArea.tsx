@@ -12,6 +12,8 @@ interface GameAreaProps {
 
 const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
     const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        // Prevent interaction while color selection is active ONLY in Normal difficulty, or when not playing
+        if ((state.difficulty === 'normal' && state.showColorSelect) || state.gameState !== 'playing') return;
         const rect = event.currentTarget.getBoundingClientRect();
         const style = window.getComputedStyle(event.currentTarget);
         const paddingLeft = parseFloat(style.paddingLeft);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -8,10 +8,9 @@ import type { Profile } from '../types';
 import PatronBadge from './PatronBadge';
 import toast from 'react-hot-toast';
 import { FaExternalLinkAlt, FaCopy, FaEye } from 'react-icons/fa';
-import toast from 'react-hot-toast';
-import { FaExternalLinkAlt, FaCopy, FaEye } from 'react-icons/fa';
+// PageCurl is applied by parent pages when needed
 
-const Ranking = () => {
+const Ranking = forwardRef<HTMLDivElement, {}>((_props, ref) => {
   const { t } = useTranslation();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeGames, setActiveGames] = useState<Map<string, string>>(new Map());
@@ -22,6 +21,7 @@ const Ranking = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [updatedAt, setUpdatedAt] = useState<string>('');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  
 
   useEffect(() => {
     const fetchRankingData = async () => {
@@ -29,7 +29,7 @@ const Ranking = () => {
       
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, username:nickname, elo_rating, is_supporter, nickname_color, badge_color')
+        .select('id, username, elo_rating, is_supporter, nickname_color, badge_color')
         .neq('elo_rating', 1200)
         .order('elo_rating', { ascending: false })
         .limit(50);
@@ -79,6 +79,8 @@ const Ranking = () => {
     };
   }, []);
 
+  
+
   // derived list
   const filtered = (showOnlyActive ? profiles.filter(p => activeGames.has(p.id)) : profiles)
     .filter(p => (supportersOnly ? p.is_supporter : true))
@@ -115,7 +117,13 @@ const Ranking = () => {
   };
 
   return (
-    <div className="w-full max-w-md p-4 mt-8 bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-xl border border-gray-700">
+    <div
+      ref={ref}
+      className="w-full max-w-md p-4 mt-8 bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-xl border border-gray-700"
+      role="region"
+      aria-label={t('Top50Players')}
+      aria-busy={loading}
+    >
       <h2 className="text-2xl font-bold text-center text-white mb-6">{t('Top50Players')}</h2>
       {loading ? (
         <p className="text-center text-gray-400">{t('LoadingRankings')}</p>
@@ -156,7 +164,7 @@ const Ranking = () => {
             (async () => {
               const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('id, username:nickname, elo_rating, is_supporter, nickname_color, badge_color')
+                .select('id, username, elo_rating, is_supporter, nickname_color, badge_color')
                 .neq('elo_rating', 1200)
                 .order('elo_rating', { ascending: false })
                 .limit(50);
@@ -175,7 +183,7 @@ const Ranking = () => {
             {t('SpectateRandom', 'Random')}
           </button>
         </div>
-        <div className="text-right text-[10px] text-gray-400 mb-2">{t('UpdatedAt', 'Updated at')}: {updatedAt || '-'}</div>
+        <div className="text-right text-[10px] text-gray-400 mb-2" aria-live="polite">{t('UpdatedAt', 'Updated at')}: {updatedAt || '-'}</div>
         {filtered.length === 0 ? (
           <p className="text-center text-gray-400">{t('NoResults', 'No matching results')}</p>
         ) : (
@@ -219,6 +227,6 @@ const Ranking = () => {
       )}
     </div>
   );
-};
+});
 
 export default Ranking;

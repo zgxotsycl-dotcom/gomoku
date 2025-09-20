@@ -63,10 +63,24 @@ export const GameBoard = ({
                 {/* The interactive grid area */}
                 <div
                     onClick={handleBoardClick}
-                    className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm ${(startAnimKey>0?'start-swoop ':'')}${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 >
-                    {/* Opening glow sweep overlay */}
-                    <div key={`glow-${startAnimKey}`} className="glow-sweep" />
+                    {/* Tile-by-tile intro overlay (from top-left corner) */}
+                    {startAnimKey > 0 && (
+                      <div className="intro-tiles pointer-events-none" key={`intro-${startAnimKey}`} style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`,
+                        gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)`,
+                        position: 'absolute', inset: 0,
+                      }}>
+                        {Array.from({ length: BOARD_SIZE }).map((_, r) => (
+                          Array.from({ length: BOARD_SIZE }).map((__, c) => {
+                            const d = (r + c) * 22; // ms delay per diagonal step
+                            return <div key={`t-${r}-${c}`} className="intro-tile" style={{ animationDelay: `${d}ms` }} />
+                          })
+                        ))}
+                      </div>
+                    )}
                     {/* Lines are drawn on a transparent overlay inside the grid */}
                     <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ padding: `calc(100% / (${BOARD_SIZE} - 1) / 2)` }}>
                         {Array.from({ length: BOARD_SIZE }).map((_, i) => <div key={`v-${i}`} className="goboard-line absolute" style={{ left: `${(i / (BOARD_SIZE - 1)) * 100}%`, top: 0, width: '1px', height: '100%' }}></div>)}
@@ -94,15 +108,28 @@ export const GameBoard = ({
                                 const stoneSize = `calc(100% / ${BOARD_SIZE} * 0.9)`;
                                 const isWinStone = isWinningStone(r_idx, c_idx);
                                 const isLast = isLastMove(r_idx, c_idx);
-                                const stoneClasses = `absolute rounded-full stone-shadow ${isWinStone ? 'animate-chroma-shine' : ''} ${!isWinStone && isLast ? 'animate-slime-in' : ''}`;
-                                return <div key={`${r_idx}-${c_idx}`} className={stoneClasses} style={{
+                                const stoneClasses = `absolute rounded-full stone-shadow ${isWinStone ? 'animate-chroma-shine' : ''} ${!isWinStone && isLast ? 'stone-pop' : ''}`;
+                                const stoneStyle: React.CSSProperties = {
                                     top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
                                     left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
                                     width: stoneSize,
                                     height: stoneSize,
                                     backgroundColor: cell,
                                     border: '1px solid gray'
-                                }}></div>;
+                                };
+                                return (
+                                  <>
+                                    <div key={`s-${r_idx}-${c_idx}`} className={stoneClasses} style={stoneStyle} />
+                                    {isLast && !isWinStone && (
+                                      <div key={`r-${r_idx}-${c_idx}`} className="stone-ripple" style={{
+                                        top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                        left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                        width: stoneSize,
+                                        height: stoneSize,
+                                      }} />
+                                    )}
+                                  </>
+                                );
                             }
                             return null;
                         }))}

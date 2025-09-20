@@ -1,5 +1,7 @@
 import { Player } from './ai';
 
+export const BOARD_SIZE = Number(process.env.NEXT_PUBLIC_BOARD_SIZE || 15);
+
 export const checkWin = (board: (Player | null)[][], player: Player, row: number, col: number): {row: number, col: number}[] | null => {
   const BOARD_SIZE = board.length;
   const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];

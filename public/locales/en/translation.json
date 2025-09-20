@@ -112,5 +112,7 @@
   "SortEloDesc": "ELO desc",
   "SortEloAsc": "ELO asc",
   "Clear": "Clear",
-  "SupportersOnly": "Supporters only"
+  "SupportersOnly": "Supporters only",
+  "PvaLoadingTitle": "Preparing AI match...",
+  "PvaLoadingSubtitle": "Preloading the cosmic background"
 }

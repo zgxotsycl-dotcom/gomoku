@@ -3,7 +3,7 @@ import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
 import I18nProvider from '@/components/I18nProvider'
 import { Toaster } from 'react-hot-toast'
-import './globals.css'
+import '@/app/globals.css'
 import { languages } from '@/i18n/settings'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -31,7 +31,7 @@ export default function RootLayout({
         <html lang={lng}>
             <head>
             </head>
-            <body className={inter.className}>
+            <body className={inter.className + ' bg-gray-900 text-white'}>
                 <I18nProvider lng={lng}>
                     <AuthProvider>
                         {children}

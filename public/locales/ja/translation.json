@@ -112,5 +112,7 @@
   "SortEloDesc": "ELO降順",
   "NoResults": "該当する結果がありません",
   "Refresh": "再読み込み",
-  "SearchNickname": "ニックネーム検索"
+  "SearchNickname": "ニックネーム検索",
+  "PvaLoadingTitle": "AI対戦の準備中...",
+  "PvaLoadingSubtitle": "背景を先読みしています"
 }

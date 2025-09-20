@@ -1,0 +1,28 @@
+
+> gomoku-app-v2@0.1.0 dev:all
+> npx concurrently "npm:dev" "node server.js"
+
+[1] Socket.IO server running on port 3002
+[dev] 
+[dev] > gomoku-app-v2@0.1.0 dev
+[dev] > next dev
+[dev] 
+[dev]   ▲ Next.js 14.2.32
+[dev]   - Local:        http://localhost:3000
+[dev]   - Environments: .env.local
+[dev] 
+[dev]  ✓ Starting...
+[dev]  ✓ Ready in 1306ms
+[dev]  ✓ Compiled /src/middleware in 109ms (75 modules)
+[dev]  ○ Compiling /[lng] ...
+[dev]  ✓ Compiled /[lng] in 1978ms (889 modules)
+[dev]  ✓ Compiled in 271ms (423 modules)
+[dev]  GET /ko 200 in 2519ms
+[dev]  ○ Compiling /_not-found ...
+[dev]  ✓ Compiled /_not-found in 604ms (879 modules)
+[dev]  GET /.well-known/appspecific/com.chrome.devtools.json 404 in 695ms
+[1] A user connected: KE0WMjGfi1t0t69kAAAC
+[1] Socket KE0WMjGfi1t0t69kAAAC authenticated as user f58ad9d4-b083-4e27-9434-78f09d437312
+[1] node server.js exited with code 1
+[dev] [?25h
+[dev] npm run dev exited with code 0

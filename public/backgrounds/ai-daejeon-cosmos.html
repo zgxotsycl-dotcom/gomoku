@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NASA‑Style Vortex — Fixed (No Gray Ovals / No Black Screen)</title>
+<style>
+  html,body{height:100%;background:#000}
+  body{margin:0}
+  *{box-sizing:border-box}
+
+  :root{
+    --space-bg:#050711;
+    --grain-alpha:0.018;
+  }
+
+  .space{
+    position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+    /* 회색 타원 방지: 아주 약한 보조 그라디언트만 */
+    background:
+      radial-gradient(1200px 900px at 50% -10%, rgba(30,45,90,.08), transparent 65%),
+      radial-gradient(1000px 700px at 10% 110%, rgba(15,20,40,.08), transparent 70%),
+      linear-gradient(rgba(255,255,255,var(--grain-alpha)), rgba(255,255,255,var(--grain-alpha))),
+      var(--space-bg);
+    background-blend-mode:screen,screen,difference,normal;
+  }
+
+  .layer{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; will-change:transform,opacity }
+  #spaceGL { opacity:1 }    /* 메인 WebGL(소용돌이) */
+  #stars   { opacity:.92 }
+  #grain   { opacity:.08 }
+
+  @media (prefers-reduced-motion:reduce){
+    #spaceGL{ animation:none !important }
+  }
+</style>
+</head>
+<body>
+  <div class="space" aria-hidden="true">
+    <canvas id="stars"   class="layer"></canvas>
+    <canvas id="spaceGL" class="layer"></canvas>
+    <canvas id="grain"   class="layer"></canvas>
+  </div>
+
+<script>
+(() => {
+  const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+  const TAU = Math.PI*2;
+
+  /* ---------- 부드러운 시간 ---------- */
+  const Clock = { last: performance.now(), t: 0, dtSmooth: 1/60, k: 0.25,
+    tick(now){ const dt=Math.max(4,Math.min(50,now-this.last))/1000; this.last=now; this.dtSmooth+=(dt-this.dtSmooth)*this.k; this.t+=this.dtSmooth; return {t:this.t, dtMs:this.dtSmooth*1000}; }
+  };
+
+  /* ---------- AutoQ ---------- */
+  const AutoQ = {
+    samples:[], windowMs:900, lastCheck:0, fps:60,
+    scale:0.72, skip:0, bounds:{min:0.46, max:0.95, skipMax:1},
+    sample(dtMs, now){
+      this.samples.push({t:now, dt:dtMs});
+      while(this.samples.length && now-this.samples[0].t>this.windowMs) this.samples.shift();
+      const avg=this.samples.reduce((a,s)=>a+s.dt,0)/Math.max(1,this.samples.length);
+      this.fps=1000/avg;
+      if(now-this.lastCheck<450) return false; this.lastCheck=now;
+      if(this.fps<52){ if(this.skip<this.bounds.skipMax) this.skip++; else this.scale=Math.max(this.bounds.min,this.scale-0.05); return true; }
+      if(this.fps>59){ if(this.scale<this.bounds.max) this.scale=Math.min(this.bounds.max,this.scale+0.04); else if(this.skip>0) this.skip--; return true; }
+      return false;
+    }
+  };
+
+  /* ---------- 파라미터 (색감 강화) ---------- */
+  const Q = {
+    dprCap: 1.2,
+    exposure: 0.95,
+    peakWhite: 0.95,
+
+    col: {
+      deep:  [0.035,0.055,0.12],   // 바깥 네이비
+      blue:  [0.30,0.52,1.05],     // 청색
+      teal:  [0.42,0.85,1.00],     // 청록 하이라이트
+      pink:  [1.00,0.70,0.90],     // 핑크
+      warm:  [1.10,0.78,0.42]      // 주황/황백
+    },
+
+    vortex: { rotSpeed: prefersReduced?0.03:0.07, swirl:2.8, falloff:1.85, noiseScale:2.0 },
+    ring:   { freq:5.0, arms:3.0, gain:0.68 },
+    core:   { size:0.22, warmGain:1.15, pinkGain:0.65 },
+    jet:    { angle:-0.30, length:0.62, width:0.045, gain:0.80 }
+  };
+
+  /* ---------- 캔버스 ---------- */
+  const glcv  = document.getElementById('spaceGL');
+  const stars = document.getElementById('stars');
+  const grain = document.getElementById('grain');
+  const sctx  = stars.getContext('2d',{alpha:true, desynchronized:true});
+  const grctx = grain.getContext('2d',{alpha:true, desynchronized:true});
+  let DPR = Math.min(devicePixelRatio||1, Q.dprCap), W=innerWidth, H=innerHeight;
+
+  /* ---------- 별(2D) ---------- */
+  let starTiles=[];
+  function makeStarTile(size, density, glow=false){
+    const cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+    const cx=cv.getContext('2d',{alpha:true, desynchronized:true}); const N=Math.floor(density*(size*size)/(1024*1024)*2600);
+    const TAU=6.2831853;
+    for(let i=0;i<N;i++){
+      const x=Math.random()*size, y=Math.random()*size, r=0.25+Math.pow(Math.random(),2)*1.2;
+      const roll=Math.random(), a=0.28+0.5*Math.random();
+      let col;
+      if(roll<0.08) col=`hsla(${35+Math.random()*20},70%,78%,${a})`;
+      else if(roll>0.92) col=`hsla(${200+Math.random()*40},72%,80%,${a})`;
+      else col=`rgba(240,245,255,${a})`;
+      cx.fillStyle=col; cx.beginPath(); cx.arc(x,y,r,0,TAU); cx.fill();
+    }
+    if(glow){
+      for(let i=0;i<Math.floor(N*0.02);i++){
+        const x=Math.random()*size, y=Math.random()*size, rr=6+Math.random()*10;
+        const gr=cx.createRadialGradient(x,y,0,x,y,rr);
+        gr.addColorStop(0,'rgba(255,255,255,0.16)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+        cx.fillStyle=gr; cx.beginPath(); cx.arc(x,y,rr,0,TAU); cx.fill();
+      }
+    }
+    return cv;
+  }
+  function initStars(){
+    DPR=Math.min(devicePixelRatio||1, Q.dprCap);
+    stars.width=Math.max(1, innerWidth*DPR); stars.height=Math.max(1, innerHeight*DPR);
+    stars.style.width=innerWidth+'px'; stars.style.height=innerHeight+'px';
+    sctx.setTransform(DPR,0,0,DPR,0,0); W=innerWidth; H=innerHeight;
+    const tile=Math.max(1024, Math.min(2048, Math.ceil(Math.max(W,H)*0.9)));
+    starTiles=[ makeStarTile(tile, 1.2, true), makeStarTile(tile, 0.9, false) ];
+  }
+  function drawStars(t){
+    sctx.clearRect(0,0,W,H);
+    const driftX=Math.cos(t*0.018)*3.0, driftY=Math.sin(t*0.015)*2.6;
+    for(let i=0;i<starTiles.length;i++){
+      const tile=starTiles[i], w=tile.width, h=tile.height;
+      let ox=((driftX*i*2)%w+w)%w, oy=((driftY*i*2)%h+h)%h;
+      for(let x=-ox; x<W; x+=w){ for(let y=-oy; y<H; y+=h){ sctx.drawImage(tile,x,y); } }
+    }
+  }
+
+  /* ---------- Grain ---------- */
+  function drawGrain(){
+    const dpr=Math.min(devicePixelRatio||1, Q.dprCap);
+    grain.width=Math.max(1, innerWidth*dpr); grain.height=Math.max(1, innerHeight*dpr);
+    grain.style.width=innerWidth+'px'; grain.style.height=innerHeight+'px';
+    grctx.setTransform(dpr,0,0,dpr,0,0);
+    const w=innerWidth,h=innerHeight,tile=128, off=document.createElement('canvas'); off.width=tile; off.height=tile;
+    const o=off.getContext('2d'), id=o.createImageData(tile,tile), d=id.data;
+    for(let i=0;i*4<d.length;i++){ const v=(Math.random()*255)|0; d[i*4]=v; d[i*4+1]=v; d[i*4+2]=v; d[i*4+3]=10; }
+    o.putImageData(id,0,0); const pat=grctx.createPattern(off,'repeat'); grctx.clearRect(0,0,w,h); grctx.fillStyle=pat; grctx.fillRect(0,0,w,h);
+  }
+
+  /* ============================================================
+     Vortex(WebGL) — 검은 화면 원인 제거(안전 pow)
+  ============================================================ */
+  let gl=null, prog=null, frame=0, glScale=AutoQ.scale;
+  function initGL(){
+    try{
+      gl = glcv.getContext('webgl',{alpha:true, antialias:false, premultipliedAlpha:false, powerPreference:'high-performance', desynchronized:true});
+      if(!gl) throw new Error('WebGL NA');
+
+      const vs=`attribute vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0);} `;
+      const fs=`
+      precision mediump float;
+      uniform vec2 u_res; uniform float u_time, u_exposure, u_peak;
+      uniform float u_rotSpeed, u_swirl, u_falloff, u_noiseScale;
+      uniform float u_ringFreq, u_ringArms, u_ringGain;
+      uniform float u_coreSize, u_coreWarm, u_corePink;
+      uniform float u_jetAng, u_jetLen, u_jetW, u_jetGain;
+      uniform vec3 u_colDeep, u_colBlue, u_colTeal, u_colPink, u_colWarm;
+
+      /* --------- 유틸/노이즈 --------- */
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453123); }
+      float noise(vec2 p){ vec2 i=floor(p), f=fract(p);
+        float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+        vec2 u=f*f*(3.0-2.0*f); return mix(mix(a,b,u.x), mix(c,d,u.x), u.y); }
+      float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<5;i++){ s+=a*noise(p); p*=2.02; a*=0.53; } return s; }
+      mat2 rot(float th){ float c=cos(th), s=sin(th); return mat2(c,-s,s,c); }
+      float posPow(float x, float e){ return pow(max(x,0.0), e); }  /* ★ 안전 pow(검은 화면 원인 제거) */
+
+      vec3 ACES(vec3 x){
+        const mat3 m1=mat3(0.59719,0.35458,0.04823, 0.07600,0.90834,0.01566, 0.02840,0.13383,0.83777);
+        const mat3 m2=mat3(1.60475,-0.53108,-0.07367, -0.10208,1.10813,-0.00605, -0.00327,-0.07276,1.07602);
+        vec3 v=m1*x; v=(v*(v+0.0245786)-0.000090537*v*v*v)/(v*(0.983729*v+0.4329510)+0.238081); return clamp(m2*v,0.0,1.0);
+      }
+
+      void main(){
+        vec2 uv=(gl_FragCoord.xy/u_res)*2.0-1.0; uv.x*=u_res.x/u_res.y;
+        float r=length(uv)+1e-6;
+        float ang=atan(uv.y,uv.x);
+
+        // 소용돌이 좌표
+        float twist=u_swirl*exp(-r*u_falloff);
+        float theta=ang + twist + u_time*u_rotSpeed;
+        vec2 p=vec2(cos(theta), sin(theta))*r;
+
+        // 구름/디스크
+        float n  = fbm(p*u_noiseScale + vec2(0.0, u_time*0.12));
+        float n2 = fbm(rot(1.3)*p*u_noiseScale*0.5 + vec2(u_time*0.05, 0.0));
+
+        // 스파이럴 팔/링
+        float logR = log(max(r, 1e-3));
+        float spiral = 0.5 + 0.5*cos(u_ringArms*ang - logR*u_ringFreq + u_time*0.25);
+        float ring   = smoothstep(0.02, 0.0, abs(fract((logR*0.75 - ang*0.1)*2.0)-0.5));
+        float disk   = posPow(1.0-r, 0.35) * (0.6+0.4*n) * (0.55+0.45*spiral) + 0.35*ring;
+
+        // 색 혼합
+        vec3 col = u_colDeep;
+        col = mix(col, u_colBlue, clamp(disk, 0.0, 1.0));
+        col = mix(col, u_colTeal, clamp(n*0.8, 0.0, 1.0));
+        col += (u_colPink * (0.25 + 0.75*n2)) * (0.55*posPow(1.0-r,1.2));
+
+        // 코어/링
+        float core = exp(-pow(r/u_coreSize, 2.0));
+        vec3 coreCol = u_colWarm*u_coreWarm*core + u_colPink*u_corePink*sqrt(core);
+        col += coreCol;
+        float ringR=u_coreSize*1.3, rr=abs(r-ringR);
+        float thin = exp(-pow(rr/(u_coreSize*0.25), 2.0)) * u_ringGain;
+        col += mix(u_colPink, u_colWarm, 0.5) * thin;
+
+        // 제트(대각선, 양방향)
+        mat2 R=rot(u_jetAng); vec2 q=R*uv;
+        float along=abs(q.y), side=q.x;
+        float jet=exp(-pow(side/(u_jetW+0.005),2.0)) * smoothstep(0.0, u_jetLen, 1.0 - along);
+        vec3 jetCol=mix(vec3(0.72,0.88,1.00), vec3(0.95,0.98,1.0), 0.6);
+        col += jetCol * jet * u_jetGain;
+
+        // 노출/톤매핑/소프트 피크
+        col = 1.0 - exp(-col * u_exposure);
+        col = ACES(col);
+        float m=max(col.r, max(col.g, col.b));
+        if(m>u_peak) col*=u_peak/m;
+
+        // 안전 최소치(완전 흑 방지)
+        col = max(col, u_colDeep*0.04);
+
+        gl_FragColor=vec4(col,1.0);
+      }`;
+
+      const mkSh=(t,s)=>{const sh=gl.createShader(t); gl.shaderSource(sh,s); gl.compileShader(sh); if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh;};
+
+      prog=gl.createProgram();
+      gl.attachShader(prog, mkSh(gl.VERTEX_SHADER, vs));
+      gl.attachShader(prog, mkSh(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog);
+      if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+
+      const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
+      const loc=gl.getAttribLocation(prog,'a'); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); gl.enableVertexAttribArray(loc);
+
+      gl.useProgram(prog);
+      resizeGL(true);
+    }catch(e){
+      console.warn('WebGL disabled', e);
+      gl=null; glcv.style.display='none';  // Fallback: 별/그레인만 표시
+    }
+  }
+
+  function resizeGL(force=false){
+    if(!gl) return;
+    const dpr=Math.min(devicePixelRatio||1,  Q.dprCap);
+    const sc = glScale;
+    const w=Math.max(1,(innerWidth * dpr * sc)|0);
+    const h=Math.max(1,(innerHeight* dpr * sc)|0);
+    if(force || glcv.width!==w || glcv.height!==h){
+      glcv.width=w; glcv.height=h; glcv.style.width=innerWidth+'px'; glcv.style.height=innerHeight+'px';
+      gl.viewport(0,0,w,h);
+    }
+  }
+
+  function renderGL(t){
+    if(!gl) return;
+    if((frame++ % (AutoQ.skip+1))!==0) return;
+    gl.useProgram(prog);
+    const U=n=>gl.getUniformLocation(prog,n);
+    gl.uniform2f(U('u_res'), glcv.width, glcv.height);
+    gl.uniform1f(U('u_time'), t);
+    gl.uniform1f(U('u_exposure'), Q.exposure);
+    gl.uniform1f(U('u_peak'), Q.peakWhite);
+
+    gl.uniform1f(U('u_rotSpeed'), Q.vortex.rotSpeed);
+    gl.uniform1f(U('u_swirl'),    Q.vortex.swirl);
+    gl.uniform1f(U('u_falloff'),  Q.vortex.falloff);
+    gl.uniform1f(U('u_noiseScale'), Q.vortex.noiseScale);
+
+    gl.uniform1f(U('u_ringFreq'), Q.ring.freq);
+    gl.uniform1f(U('u_ringArms'), Q.ring.arms);
+    gl.uniform1f(U('u_ringGain'), Q.ring.gain);
+
+    gl.uniform1f(U('u_coreSize'), Q.core.size);
+    gl.uniform1f(U('u_coreWarm'), Q.core.warmGain);
+    gl.uniform1f(U('u_corePink'), Q.core.pinkGain);
+
+    gl.uniform1f(U('u_jetAng'),  Q.jet.angle);
+    gl.uniform1f(U('u_jetLen'),  Q.jet.length);
+    gl.uniform1f(U('u_jetW'),    Q.jet.width);
+    gl.uniform1f(U('u_jetGain'), Q.jet.gain);
+
+    const set3=(n,a)=>gl.uniform3f(U(n),a[0],a[1],a[2]);
+    set3('u_colDeep', Q.col.deep); set3('u_colBlue', Q.col.blue);
+    set3('u_colTeal', Q.col.teal); set3('u_colPink', Q.col.pink); set3('u_colWarm', Q.col.warm);
+
+    gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+
+  /* ---------- 리사이즈/루프 ---------- */
+  function resizeAll(forceGL=false){
+    [stars, grain, glcv].forEach(c=>{c.width=1;c.height=1;});
+    initStars(); drawGrain(); resizeGL(forceGL);
+    drawStars(0); renderGL(0);
+  }
+  addEventListener('resize', ()=>resizeAll(true), {passive:true});
+
+  let rafId=0;
+  function tick(now){
+    const {t, dtMs}=Clock.tick(now);
+    drawStars(t); renderGL(t);
+    if (AutoQ.sample(dtMs, now)){ const s=AutoQ.scale; if(Math.abs(s-glScale)>0.01){ glScale=s; resizeGL(true); } }
+    rafId=requestAnimationFrame(tick);
+  }
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(rafId) cancelAnimationFrame(rafId); rafId=0; } else { Clock.last=performance.now(); rafId=requestAnimationFrame(tick); } });
+
+  /* ---------- Boot & 단축키 ---------- */
+  function boot(){ initGL(); resizeAll(true); if(!prefersReduced) rafId=requestAnimationFrame(tick); else { drawStars(0); renderGL(0);} }
+  // 빠른 튜닝
+  addEventListener('keydown', (e)=>{
+    if(e.key==='1') Q.jet.angle += 0.15;
+    if(e.key==='2') Q.jet.gain  = (Q.jet.gain>0.75)?0.55:0.80;
+    if(e.key==='3') Q.vortex.rotSpeed = (Q.vortex.rotSpeed>0.06)?0.03:0.08;
+  }, {passive:true});
+
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -6,10 +6,10 @@ import GameEndModal from './GameEndModal';
 import PostGameManager from './PostGameManager';
 import GameArea from './GameArea';
 import PvaBackground from './PvaBackground';
-import PlayerBanner from './PlayerBanner';
+import PlayerBanner from './PlayerBanner'; // Import PlayerBanner
 import type { GameMode, Game } from '../types';
 import ColorSelect from './ColorSelect';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Script from 'next/script';
 
 const formatTime = (ms: number) => {
@@ -49,22 +49,23 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         const aiProfile = {
             id: 'ai',
             username: 'Gomoku AI',
-            elo_rating: 1500,
+            elo_rating: 1500, // Placeholder ELO
             is_supporter: true,
             nickname_color: '#FFD700',
             badge_color: '#FFD700',
-            banner_color: '#4A5568',
-        } as any;
+            banner_color: '#4A5568', // Default AI banner color
+        };
 
         p1Profile = humanPlayerIsBlack ? humanProfile : aiProfile;
         p2Profile = humanPlayerIsBlack ? aiProfile : humanProfile;
     }
+    // TODO: Add logic for PVO profiles
 
     type PlayerChoice = 'black' | 'white';
     const onChooseColor = async (color: PlayerChoice) => {
         try {
             if (color === 'black') {
-                // Human chooses Black: create B-W-B proposal and let AI (second) decide swap.
+                // Human is Black (first). Generate proposal (B-W-B), then let AI decide swap per Swap2.
                 const respProp = await fetch('/api/swap2/propose', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -73,44 +74,72 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
                 if (!respProp.ok) throw new Error(`Swap2(propose) failed: ${respProp.status}`);
                 const prop = await respProp.json();
 
-                // Default: AI is white (user stays black) unless AI swaps.
-                let aiColor: 'black' | 'white' = 'white';
-                // Ask AI whether to swap to Black using the proposed opening board.
+                // Decide colors using hypothetical opening only; do not apply stones.
+                dispatch({ type: 'SET_AI_PLAYER', payload: 'white' });
+
+                // Now ask AI (second) whether to swap to Black.
                 const respSecond = await fetch('/api/swap2/second', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ board: prop.board }),
                 });
-                if (respSecond.ok) {
-                    const decision = await respSecond.json();
-                    aiColor = decision?.swapColors ? 'black' : 'white';
-                }
+                if (!respSecond.ok) throw new Error(`Swap2(second) failed: ${respSecond.status}`);
+                const decision = await respSecond.json();
+                const aiColor: 'black' | 'white' = decision?.swapColors ? 'black' : 'white';
                 dispatch({ type: 'SET_AI_PLAYER', payload: aiColor });
-                // Apply B-W-B to the board. If AI swaps to black, black to move; otherwise white to move.
-                const toMove: 'black' | 'white' = aiColor === 'black' ? 'black' : (prop.toMove || 'white');
-                dispatch({ type: 'APPLY_OPENING', payload: { board: prop.board, toMove, aiPlayer: aiColor } });
+                // Start from empty board regardless of swap decision.
             } else {
-                // Human chooses White: AI is Black. Generate B-W-B opening and apply (toMove is typically white).
-                const respProp = await fetch('/api/swap2/propose', {
+                // Human is White (second). Propose B-W-B and let human add extra white move (option 2 simplified).
+                const resp = await fetch('/api/swap2/propose', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ board: state.board }),
                 });
-                if (!respProp.ok) throw new Error(`Swap2(propose) failed: ${respProp.status}`);
-                const prop = await respProp.json();
+                if (!resp.ok) throw new Error(`Swap2(propose) failed: ${resp.status}`);
+                const data = await resp.json();
+                // 백 선택 시 Swap2 기본 옵션: 추가 백 2수 옵션 없이 바로 백 차례 시작
+                const nextToMove: 'white' = 'white';
+                dispatch({ type: 'APPLY_OPENING', payload: { board: data.board, toMove: nextToMove, aiPlayer: 'black' } });
                 dispatch({ type: 'SET_AI_PLAYER', payload: 'black' });
-                const toMove: 'black' | 'white' = prop.toMove || 'white';
-                dispatch({ type: 'APPLY_OPENING', payload: { board: prop.board, toMove, aiPlayer: 'black' } });
             }
         } catch (e) {
             console.error('Swap2 setup failed:', e);
         } finally {
             dispatch({ type: 'HIDE_COLOR_SELECT' });
+            // Start game timer after selection
             dispatch({ type: 'SET_GAME_STATE', payload: 'playing' });
             dispatch({ type: 'TRIGGER_START_ANIM' });
+            // If this was an auto Swap2 start on rematch, clear the pending flag
             dispatch({ type: 'SET_REMATCH_SWAP2_PENDING', payload: false });
         }
     };
+
+    // After extra white stones (Swap2 option 3), let AI choose color
+    const prevPendingRef = useRef<string | null>(null);
+    useEffect(() => {
+        const prev = prevPendingRef.current;
+        prevPendingRef.current = state.pendingOpening as any;
+        if (state.gameMode !== 'pva') return;
+        if (prev === 'white_extra1' && state.pendingOpening === 'none') {
+            // Two extra whites placed; ask AI to choose color
+            (async () => {
+                try {
+                    const res = await fetch('/api/swap2/choose', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ board: state.board }),
+                    });
+                    const data = await res.json();
+                    const aiColor = (data && (data.aiColor === 'black' || data.aiColor === 'white')) ? data.aiColor : 'black';
+                    dispatch({ type: 'SET_AI_PLAYER', payload: aiColor });
+                    // Ensure it's black to move after extra whites
+                    dispatch({ type: 'SET_GAME_STATE', payload: 'playing' });
+                } catch (e) {
+                    dispatch({ type: 'SET_AI_PLAYER', payload: 'black' });
+                }
+            })();
+        }
+    }, [state.pendingOpening, state.gameMode, state.board, dispatch]);
 
     // Listen for online opening application event (for PVO)
     useEffect(() => {
@@ -143,13 +172,14 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         } catch {}
     }, [dispatch, state.gameMode, state.history.length]);
 
-    // Rematch Normal: auto Swap2 opening (no stones placed)
+    // Rematch Normal 모드: 랜덤 시작 색상으로 자동 Swap2 오프닝 수행
     useEffect(() => {
         if (state.gameMode !== 'pva') return;
         if (state.difficulty !== 'normal') return;
         if (!state.rematchSwap2Pending) return;
         if (state.history.length !== 0) return;
         if (state.gameState !== 'waiting') return;
+        // aiPlayer가 white이면 사용자 시작색=black, 반대로 aiPlayer가 black이면 사용자 시작색=white로 자동 선택
         const autoColor: PlayerChoice = state.aiPlayer === 'white' ? 'black' : 'white';
         void onChooseColor(autoColor);
     }, [state.gameMode, state.difficulty, state.rematchSwap2Pending, state.history.length, state.gameState, state.aiPlayer]);
@@ -160,6 +190,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               visible={state.gameMode === 'pva' && state.difficulty === 'normal' && state.showColorSelect && state.history.length === 0}
               onSelect={(c) => { void onChooseColor(c); }}
               timeoutMs={7000}
+              // 7초 내 미선택 시, 현재(기존) 색으로 진행
               onTimeout={() => {
                 const fallback: 'black' | 'white' = state.aiPlayer === 'white' ? 'black' : 'white';
                 void onChooseColor(fallback);
@@ -235,3 +266,4 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 }
 
 export default Board;
+

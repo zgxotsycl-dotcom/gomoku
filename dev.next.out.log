@@ -1,0 +1,21 @@
+  ▲ Next.js 14.2.32
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1316ms
+ ✓ Compiled /api/swap2/propose in 479ms (56 modules)
+ POST /api/swap2/propose 200 in 2166ms
+ ✓ Compiled /api/swap2/choose in 107ms (58 modules)
+ ✓ Compiled /api/swap2/second in 49ms (60 modules)
+ POST /api/swap2/choose 200 in 677ms
+ ✓ Compiled /api/get-move in 59ms (62 modules)
+ POST /api/get-move 200 in 274ms
+ POST /api/swap2/second 200 in 618ms
+ POST /api/get-move 200 in 181ms
+ POST /api/get-move 500 in 180ms
+ POST /api/get-move 500 in 178ms
+ POST /api/get-move 500 in 179ms
+ POST /api/get-move 500 in 186ms
+ POST /api/get-move 500 in 181ms
+[?25h

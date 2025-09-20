@@ -87,14 +87,15 @@ const initialState = {
     whatIfLastMove: null as Move | null,
     isWinningShake: false, // ADDED
     showColorSelect: false as boolean,
-    pendingOpening: 'none' as 'none' | 'white_extra',
+    pendingOpening: 'none' as 'none' | 'white_extra2' | 'white_extra1',
     startAnimKey: 0,
+    rematchSwap2Pending: false,
 };
 
 type Action =
     | { type: 'PLACE_STONE', payload: { row: number, col: number } }
     | { type: 'AI_MOVE', payload: { row: number, col: number } }
-    | { type: 'RESET_GAME', payload?: { gameMode?: GameMode, isPrivate?: boolean } }
+    | { type: 'RESET_GAME', payload?: { gameMode?: GameMode, isPrivate?: boolean, isRematch?: boolean } }
     | { type: 'SET_BOARD', payload: (Player | null)[][] }
     | { type: 'APPLY_OPENING', payload: { board: (Player|null)[][], toMove: Player, aiPlayer?: Player, pendingWhiteExtra?: boolean } }
     | { type: 'SET_GAME_MODE', payload: GameMode }
@@ -114,7 +115,9 @@ type Action =
     | { type: 'STOP_WIN_ANIMATION' } // ADDED
     | { type: 'SHOW_COLOR_SELECT' }
     | { type: 'HIDE_COLOR_SELECT' }
-    | { type: 'TRIGGER_START_ANIM' };
+    | { type: 'TRIGGER_START_ANIM' }
+    | { type: 'SET_DIFFICULTY', payload: 'easy' | 'normal' }
+    | { type: 'SET_REMATCH_SWAP2_PENDING', payload: boolean };
 
 function gomokuReducer(state: typeof initialState, action: Action): typeof initialState {
     switch (action.type) {
@@ -131,22 +134,29 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 currentPlayer: next,
                 aiPlayer: ai,
                 startAnimKey: state.startAnimKey + 1,
-                pendingOpening: action.payload.pendingWhiteExtra ? 'white_extra' : 'none',
+                pendingOpening: action.payload.pendingWhiteExtra ? 'white_extra2' : 'none',
                 forbiddenMoves: next === 'white' ? findForbiddenMoves(action.payload.board, 'black') : [],
             };
         }
         case 'TRIGGER_START_ANIM':
             return { ...state, startAnimKey: state.startAnimKey + 1 };
         case 'SHOW_COLOR_SELECT':
-            return { ...state, showColorSelect: true };
+            // Pause game flow while selecting color
+            return { ...state, showColorSelect: true, gameState: 'waiting' };
         case 'HIDE_COLOR_SELECT':
             return { ...state, showColorSelect: false };
         case 'SET_DIFFICULTY':
             return { ...state, difficulty: action.payload };
+        case 'SET_REMATCH_SWAP2_PENDING':
+            return { ...state, rematchSwap2Pending: action.payload };
         case 'SET_HISTORY':
             return { ...state, history: action.payload };
-        case 'SET_GAME_STATE':
+        case 'SET_GAME_STATE': {
+            if (action.payload === 'playing' && !state.startTime) {
+                return { ...state, gameState: 'playing', startTime: Date.now() };
+            }
             return { ...state, gameState: action.payload };
+        }
         case 'SET_GAME_MODE':
             return { ...state, gameMode: action.payload };
         case 'SET_AI_KNOWLEDGE':
@@ -239,7 +249,25 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                     isWinningShake: true, // MODIFIED
                 };
             }
-            
+            // Swap2: allow two extra white stones phase
+            if (player === 'white' && (state.pendingOpening === 'white_extra2' || state.pendingOpening === 'white_extra1')) {
+                const nextPending = state.pendingOpening === 'white_extra2' ? 'white_extra1' : 'none';
+                // During extra white phase, keep white to move until two stones placed
+                const keepWhite = nextPending !== 'none';
+                const nextPlayer: Player = keepWhite ? 'white' : 'black';
+                return {
+                    ...state,
+                    board: newBoard,
+                    history: newHistory,
+                    currentPlayer: nextPlayer,
+                    forbiddenMoves: player === 'white' ? findForbiddenMoves(newBoard, 'black') : [],
+                    pendingOpening: nextPending,
+                    // do not increase timers aggressively during opening adjustment
+                    turnTimeLimit: state.turnTimeLimit,
+                    turnTimeRemaining: state.turnTimeRemaining,
+                };
+            }
+
             const newTurnTimeLimit = Math.min(MAX_TURN_TIME, state.turnTimeLimit + TIME_INCREMENT);
 
             return {
@@ -250,22 +278,49 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 forbiddenMoves: player === 'white' ? findForbiddenMoves(newBoard, 'black') : [],
                 turnTimeLimit: newTurnTimeLimit,
                 turnTimeRemaining: newTurnTimeLimit,
-                pendingOpening: state.pendingOpening === 'white_extra' && player === 'white' ? 'none' : state.pendingOpening,
             };
         }
         case 'RESET_GAME': {
             const gameMode = action.payload?.gameMode || state.gameMode;
+            const isRematch = !!action.payload?.isRematch;
+            // Rematch: 시작 색상 랜덤. Normal(PvA)에서는 Swap2 유지를 위해 자동 제안 흐름을 진행하기 위해 waiting으로 시작.
+            if (isRematch) {
+                const aiRand: Player = (Math.random() < 0.5 ? 'black' : 'white');
+                const isPva = (gameMode === 'pva');
+                const isNormal = (state.difficulty === 'normal');
+                const useSwap2Flow = isPva && isNormal;
+                return {
+                    ...initialState,
+                    gameMode,
+                    isPrivateGame: action.payload?.isPrivate || false,
+                    gameState: useSwap2Flow ? 'waiting' : 'playing',
+                    startTime: useSwap2Flow ? null : Date.now(),
+                    difficulty: state.difficulty,
+                    aiPlayer: aiRand,
+                    turnTimeLimit: BASE_TURN_TIME,
+                    turnTimeRemaining: BASE_TURN_TIME,
+                    aiKnowledge: state.aiKnowledge,
+                    showColorSelect: false,
+                    rematchSwap2Pending: useSwap2Flow,
+                };
+            }
+            // 첫 시작: PvA Normal만 색상 선택 오버레이 사용, Easy는 즉시 시작(사용자=흑, AI=백)
+            const isPvaNormal = (gameMode === 'pva' && state.difficulty === 'normal');
+            const waitStart = (isPvaNormal || gameMode === 'pvo' || gameMode === 'spectate');
             return {
                 ...initialState,
-                gameMode: gameMode,
+                gameMode,
                 isPrivateGame: action.payload?.isPrivate || false,
-                gameState: 'playing',
-                startTime: Date.now(),
-                aiPlayer: Math.random() < 0.5 ? 'black' : 'white',
+                gameState: waitStart ? 'waiting' : 'playing',
+                startTime: waitStart ? null : Date.now(),
+                difficulty: state.difficulty,
+                aiPlayer: gameMode === 'pva'
+                  ? (state.difficulty === 'easy' ? 'white' : state.aiPlayer)
+                  : (Math.random() < 0.5 ? 'black' : 'white'),
                 turnTimeLimit: BASE_TURN_TIME,
                 turnTimeRemaining: BASE_TURN_TIME,
                 aiKnowledge: state.aiKnowledge, // Preserve loaded knowledge
-                showColorSelect: gameMode === 'pva',
+                showColorSelect: isPvaNormal,
             };
         }
         case 'SET_AI_PLAYER':
@@ -340,7 +395,8 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     const [state, dispatch] = useReducer(gomokuReducer, {
         ...initialState,
         gameMode: initialGameMode,
-        gameState: replayGame ? 'replay' : (initialGameMode === 'pvo' || initialGameMode === 'spectate' ? 'waiting' : 'playing'),
+        // PVA도 초기에는 색상 선택을 위해 'waiting'으로 시작 (타이머/AI 정지)
+        gameState: replayGame ? 'replay' : ((initialGameMode === 'pvo' || initialGameMode === 'spectate' || initialGameMode === 'pva') ? 'waiting' : 'playing'),
         history: replayGame ? replayGame.moves : [],
         startTime: (initialGameMode !== 'pvo' && initialGameMode !== 'spectate' && !replayGame) ? Date.now() : null
     });
@@ -460,14 +516,16 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     }, [state.isReplaying, state.replayMoveIndex, state.history.length, dispatch]);
 
 
-    // Game Timer Logic (PVA and PVO)
+    // Game Timer Logic (PVA and PVO) — paused while color selection overlay is visible
     useEffect(() => {
         if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
         }
 
-        if ((state.gameMode === 'pva' || state.gameMode === 'pvo') && state.gameState === 'playing' && !state.winner) {
+        // Pause timer only if Normal difficulty is showing the color selection overlay
+        const overlayBlocking = (state.difficulty === 'normal' && state.showColorSelect);
+        if ((state.gameMode === 'pva' || state.gameMode === 'pvo') && state.gameState === 'playing' && !state.winner && !overlayBlocking) {
             timerRef.current = setInterval(() => {
                 dispatch({ type: 'TICK_TIMER' });
             }, 100);
@@ -478,7 +536,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                 clearInterval(timerRef.current);
             }
         };
-    }, [state.currentPlayer, state.gameState, state.winner, state.gameMode]);
+    }, [state.currentPlayer, state.gameState, state.winner, state.gameMode, state.showColorSelect, state.difficulty]);
 
     // AI Turn Logic (Now using external AI server) with strict deadline protection
     useEffect(() => {
@@ -644,7 +702,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             if (!user) return;
             const { data } = await supabase
               .from('profiles')
-              .select('id, username:nickname, elo_rating, is_supporter, nickname_color, badge_color, banner_color')
+              .select('id, username, elo_rating, is_supporter, nickname_color, badge_color, banner_color')
               .eq('id', user.id)
               .single();
             dispatch({ type: 'SET_USER_PROFILE', payload: data as any });
