@@ -2,337 +2,619 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>NASA‑Style Vortex — Fixed (No Gray Ovals / No Black Screen)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Cosmos PRO — Tileable Blue‑Noise Stars + Depth Meteors</title>
 <style>
-  html,body{height:100%;background:#000}
-  body{margin:0}
-  *{box-sizing:border-box}
-
-  :root{
-    --space-bg:#050711;
-    --grain-alpha:0.018;
-  }
-
-  .space{
-    position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
-    /* 회색 타원 방지: 아주 약한 보조 그라디언트만 */
-    background:
-      radial-gradient(1200px 900px at 50% -10%, rgba(30,45,90,.08), transparent 65%),
-      radial-gradient(1000px 700px at 10% 110%, rgba(15,20,40,.08), transparent 70%),
-      linear-gradient(rgba(255,255,255,var(--grain-alpha)), rgba(255,255,255,var(--grain-alpha))),
-      var(--space-bg);
-    background-blend-mode:screen,screen,difference,normal;
-  }
-
-  .layer{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; will-change:transform,opacity }
-  #spaceGL { opacity:1 }    /* 메인 WebGL(소용돌이) */
-  #stars   { opacity:.92 }
-  #grain   { opacity:.08 }
-
-  @media (prefers-reduced-motion:reduce){
-    #spaceGL{ animation:none !important }
-  }
+  html,body{height:100%;margin:0;background:#040611;overflow:hidden;}
+  #cosmos-root{position:fixed;inset:0;z-index:0;pointer-events:none;}
 </style>
 </head>
 <body>
-  <div class="space" aria-hidden="true">
-    <canvas id="stars"   class="layer"></canvas>
-    <canvas id="spaceGL" class="layer"></canvas>
-    <canvas id="grain"   class="layer"></canvas>
-  </div>
+  <div id="cosmos-root"><canvas id="cosmos"></canvas></div>
 
 <script>
-(() => {
-  const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-  const TAU = Math.PI*2;
+/* =========================================================
+   Canvas 2D / Double‑Buffered / Pixel‑Perfect blit
+   Tileable Blue‑Noise Starfield + Depth‑Layered Meteors
+   ========================================================= */
+const CFG = {
+  BASE_COLOR : '#040611',
+  EXPOSURE   : 1.10,
+  BRIGHT_CAP : 0.86,   // 점멸 방지 상한
 
-  /* ---------- 부드러운 시간 ---------- */
-  const Clock = { last: performance.now(), t: 0, dtSmooth: 1/60, k: 0.25,
-    tick(now){ const dt=Math.max(4,Math.min(50,now-this.last))/1000; this.last=now; this.dtSmooth+=(dt-this.dtSmooth)*this.k; this.t+=this.dtSmooth; return {t:this.t, dtMs:this.dtSmooth*1000}; }
-  };
+  FLOW: {
+    stars : { vx: 10, vy: 4, swirl: 0.006 },
+    nebula: { vx:  4, vy:-2, rot:0.0007, breathAmp:0.10, breathHz:0.08 },
+    dust  : { vx:  6, vy: 3, rot:0.00025 }
+  },
 
-  /* ---------- AutoQ ---------- */
-  const AutoQ = {
-    samples:[], windowMs:900, lastCheck:0, fps:60,
-    scale:0.72, skip:0, bounds:{min:0.46, max:0.95, skipMax:1},
-    sample(dtMs, now){
-      this.samples.push({t:now, dt:dtMs});
-      while(this.samples.length && now-this.samples[0].t>this.windowMs) this.samples.shift();
-      const avg=this.samples.reduce((a,s)=>a+s.dt,0)/Math.max(1,this.samples.length);
-      this.fps=1000/avg;
-      if(now-this.lastCheck<450) return false; this.lastCheck=now;
-      if(this.fps<52){ if(this.skip<this.bounds.skipMax) this.skip++; else this.scale=Math.max(this.bounds.min,this.scale-0.05); return true; }
-      if(this.fps>59){ if(this.scale<this.bounds.max) this.scale=Math.min(this.bounds.max,this.scale+0.04); else if(this.skip>0) this.skip--; return true; }
-      return false;
+  /* 성운/먼지(그대로) */
+  NEB_SIZE_SCALE: 1.7,
+  NEB_LAYERS: [
+    { color:'rgba(160,215,255,0.08)', blobs:220, drift:{sx: 0.003, sy: 0.002, rot: 0.00004}, scale:1.02, jitter:40 },
+    { color:'rgba(255,208,137,0.07)', blobs:180, drift:{sx:-0.002, sy: 0.002, rot: -0.00003}, scale:1.00, jitter:40 },
+    { color:'rgba(255,160,215,0.06)', blobs:160, drift:{sx: 0.002, sy:-0.002, rot:  0.00002}, scale:1.04, jitter:40 }
+  ],
+  DUST: { enabled:true, count:110, strength:0.30, angleDeg:-18, len:[0.10,0.22], width:[0.020,0.050] },
+
+  /* ===== 별(타일러블 Blue‑Noise) ===== */
+  STAR_DENSITY    : 1/950,
+  STAR_NEAR_RATIO : 0.24,
+  STAR_BRIGHT     : 190,
+  STAR_TWINKLE    : [0.50, 1.10],
+  STAR_TWINKLE_AMP: 0.10,
+  STAR_SIZE       : [0.9, 2.6],
+  STAR_BAND       : { angleDeg:-20, width:0.33 },
+  STAR_PARA       : 10,
+  CENTER_DEPTH_STRENGTH: 0.22,
+
+  /* Seam‑Free 교차 페이드 */
+  TILE_MARGIN: 28,
+
+  /* 노이즈(밴딩 억제) */
+  NOISE: { alpha: 0.015 },
+
+  /* ===== 유성(깊이 레이어) ===== */
+  METEOR: {
+    ratePerSec : 0.55, burstChance: 0.08, maxActive: 6,
+    angleDeg:[16,34], speed:[540,920], length:[140,300], width:[1.6,3.0],
+    palettes:[
+      ['#BEE6FF','#86D4FF','#4EC7FF','#1FB7FF'],
+      ['#C3FFE8','#94F6E5','#63E3F2','#5FB0FF'],
+      ['#E4E1FF','#C8B9FF','#A2A8FF','#7FD5FF'],
+      ['#E8F7FF','#CBE9FF','#A6E0FF','#8EC9FF']
+    ],
+    brightness:1.12, headGlow:2.3, fadeIn:0.15, fadeOut:0.18,
+    DEPTH:{ weights:[0.50,0.35,0.15], speedMul:[0.65,1.00,1.55], lengthMul:[0.80,1.00,1.25],
+            widthMul:[0.75,1.00,1.50], brightMul:[0.85,1.00,1.20], paraMul:[0.35,0.80,1.20], blurPx:[0.6,0.25,0.0] },
+    dust:{ ratePerSec:[80,130], life:[0.35,0.9], size:[1.2,2.6], spread:[3,9], speedBack:[28,70] }
+  }
+};
+
+/* ---------- 캔버스/버퍼 ---------- */
+const canvas = document.getElementById('cosmos');
+const front  = canvas.getContext('2d', { alpha:true, desynchronized:true });
+let W=0, H=0, dpr=1, DIAG=0;
+let backCanvas, back, needsBackResize=true;
+
+/* ---------- 전역 상태 ---------- */
+let starFlowX=0, starFlowY=0, starSwirl=0;
+let nebFlowX=0, nebFlowY=0, nebRot=0;
+let dustFlowX=0, dustFlowY=0, dustRot=0;
+
+const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+const rand=(a,b)=>a + Math.random()*(b-a);
+const TAU = Math.PI*2;
+
+/* ---------- 스프라이트 ---------- */
+let starSmall, starBright;
+function radialSprite(size, spikes=false){
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  const x=c.getContext('2d'); x.imageSmoothingEnabled=true;
+  const g=x.createRadialGradient(size/2,size/2,size*0.1, size/2,size/2,size*0.5);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.beginPath(); x.arc(size/2,size/2,size*0.5,0,TAU); x.fill();
+  const g2=x.createRadialGradient(size/2,size/2,size*0.2, size/2,size/2,size*0.7);
+  g2.addColorStop(0,'rgba(255,255,255,0.25)'); g2.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g2; x.beginPath(); x.arc(size/2,size/2,size*0.7,0,TAU); x.fill();
+  if(spikes){
+    x.save(); x.translate(size/2,size/2); x.globalCompositeOperation='lighter';
+    for(let k=0;k<6;k++){ x.rotate(Math.PI/3);
+      const lg=x.createLinearGradient(-size*0.45,0, size*0.45,0);
+      lg.addColorStop(0,'rgba(255,255,255,0)');
+      lg.addColorStop(0.5,'rgba(255,255,255,0.28)');
+      lg.addColorStop(1,'rgba(255,255,255,0)');
+      x.fillStyle=lg; x.fillRect(-size*0.45,-size*0.018,size*0.9,size*0.036);
     }
-  };
+    x.restore();
+  }
+  return c;
+}
 
-  /* ---------- 파라미터 (색감 강화) ---------- */
-  const Q = {
-    dprCap: 1.2,
-    exposure: 0.95,
-    peakWhite: 0.95,
+/* ---------- 성운/먼지 프리렌더 ---------- */
+let nebulaLayers=[], dustLayer=null;
+function blurredBlob(ctx, cx,cy, r, color){
+  const g=ctx.createRadialGradient(cx,cy,0, cx,cy,r);
+  g.addColorStop(0,color); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill();
+}
+function nebulaCanvas(w,h,color,blobs){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d'); x.globalCompositeOperation='lighter';
+  for(let i=0;i<blobs;i++){
+    const rr=rand(Math.min(w,h)*0.02, Math.max(w,h)*0.16);
+    blurredBlob(x, Math.random()*w, Math.random()*h, rr, color);
+  }
+  if('filter' in x){ x.filter='blur(5px)'; const t=document.createElement('canvas'); t.width=w; t.height=h;
+    t.getContext('2d').drawImage(c,0,0); x.filter='none'; x.clearRect(0,0,w,h); x.drawImage(t,0,0); }
+  return c;
+}
+function dustCanvas(w,h,angleRad,count,strength){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d'); x.globalCompositeOperation='destination-out';
+  const lenMin=CFG.DUST.len[0]*DIAG, lenMax=CFG.DUST.len[1]*DIAG;
+  const wMin=CFG.DUST.width[0]*DIAG, wMax=CFG.DUST.width[1]*DIAG;
+  for(let i=0;i<count;i++){
+    const cx=Math.random()*w, cy=Math.random()*h;
+    const len=rand(lenMin,lenMax), wid=rand(wMin,wMax), a=rand(0.25,0.8)*strength;
+    x.save(); x.translate(cx,cy); x.rotate(angleRad+rand(-0.3,0.3)); x.scale(1, wid/len);
+    const g=x.createRadialGradient(0,0,0, 0,0,len*0.5);
+    g.addColorStop(0,`rgba(0,0,0,${a})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(0,0,len*0.5,0,TAU); x.fill(); x.restore();
+  }
+  return c;
+}
+function buildNebulaAndDust(){
+  nebulaLayers=[];
+  const nebSize=Math.ceil(DIAG*CFG.NEB_SIZE_SCALE);
+  for(const spec of CFG.NEB_LAYERS){
+    const can=nebulaCanvas(nebSize,nebSize,spec.color,spec.blobs);
+    nebulaLayers.push({
+      canvas: can,
+      offsetX: rand(-spec.jitter, spec.jitter),
+      offsetY: rand(-spec.jitter, spec.jitter),
+      rot: rand(-0.18,0.18),
+      scale: spec.scale,
+      drift: {...spec.drift}
+    });
+  }
+  dustLayer = CFG.DUST.enabled ? dustCanvas(
+    nebSize, nebSize, CFG.DUST.angleDeg*Math.PI/180, CFG.DUST.count, CFG.DUST.strength
+  ) : null;
+}
 
-    col: {
-      deep:  [0.035,0.055,0.12],   // 바깥 네이비
-      blue:  [0.30,0.52,1.05],     // 청색
-      teal:  [0.42,0.85,1.00],     // 청록 하이라이트
-      pink:  [1.00,0.70,0.90],     // 핑크
-      warm:  [1.10,0.78,0.42]      // 주황/황백
-    },
+/* ---------- 별 필드 (★ 타일러블 Blue‑Noise) ---------- */
+let starsNear=[], starsFar=[], starsBright=[];  /* ★ 오타 수정: =[] */
 
-    vortex: { rotSpeed: prefersReduced?0.03:0.07, swirl:2.8, falloff:1.85, noiseScale:2.0 },
-    ring:   { freq:5.0, arms:3.0, gain:0.68 },
-    core:   { size:0.22, warmGain:1.15, pinkGain:0.65 },
-    jet:    { angle:-0.30, length:0.62, width:0.045, gain:0.80 }
-  };
+function poissonTileable(w,h,r,k=30){
+  const cell = r / Math.SQRT2;
+  const gw = Math.ceil(w / cell), gh = Math.ceil(h / cell);
+  const grid = new Int32Array(gw*gh).fill(-1);
+  const pts = []; const active = [];
 
-  /* ---------- 캔버스 ---------- */
-  const glcv  = document.getElementById('spaceGL');
-  const stars = document.getElementById('stars');
-  const grain = document.getElementById('grain');
-  const sctx  = stars.getContext('2d',{alpha:true, desynchronized:true});
-  const grctx = grain.getContext('2d',{alpha:true, desynchronized:true});
-  let DPR = Math.min(devicePixelRatio||1, Q.dprCap), W=innerWidth, H=innerHeight;
+  function wrapI(i, n){ i%=n; if(i<0) i+=n; return i; }
+  function gridIndex(ix,iy){ return wrapI(ix,gw) + wrapI(iy,gh)*gw; }
 
-  /* ---------- 별(2D) ---------- */
-  let starTiles=[];
-  function makeStarTile(size, density, glow=false){
-    const cv=document.createElement('canvas'); cv.width=size; cv.height=size;
-    const cx=cv.getContext('2d',{alpha:true, desynchronized:true}); const N=Math.floor(density*(size*size)/(1024*1024)*2600);
-    const TAU=6.2831853;
-    for(let i=0;i<N;i++){
-      const x=Math.random()*size, y=Math.random()*size, r=0.25+Math.pow(Math.random(),2)*1.2;
-      const roll=Math.random(), a=0.28+0.5*Math.random();
-      let col;
-      if(roll<0.08) col=`hsla(${35+Math.random()*20},70%,78%,${a})`;
-      else if(roll>0.92) col=`hsla(${200+Math.random()*40},72%,80%,${a})`;
-      else col=`rgba(240,245,255,${a})`;
-      cx.fillStyle=col; cx.beginPath(); cx.arc(x,y,r,0,TAU); cx.fill();
-    }
-    if(glow){
-      for(let i=0;i<Math.floor(N*0.02);i++){
-        const x=Math.random()*size, y=Math.random()*size, rr=6+Math.random()*10;
-        const gr=cx.createRadialGradient(x,y,0,x,y,rr);
-        gr.addColorStop(0,'rgba(255,255,255,0.16)'); gr.addColorStop(1,'rgba(255,255,255,0)');
-        cx.fillStyle=gr; cx.beginPath(); cx.arc(x,y,rr,0,TAU); cx.fill();
+  function fits(x,y){
+    const gx = Math.floor(x/cell), gy = Math.floor(y/cell);
+    for(let dj=-2; dj<=2; dj++){
+      for(let di=-2; di<=2; di++){
+        const idx = grid[gridIndex(gx+di, gy+dj)];
+        if(idx>=0){
+          const p = pts[idx];
+          let dx = Math.abs(x - p.x); if(dx > w/2) dx = w - dx;
+          let dy = Math.abs(y - p.y); if(dy > h/2) dy = h - dy;
+          if(dx*dx + dy*dy < r*r) return false;
+        }
       }
     }
-    return cv;
+    return true;
   }
-  function initStars(){
-    DPR=Math.min(devicePixelRatio||1, Q.dprCap);
-    stars.width=Math.max(1, innerWidth*DPR); stars.height=Math.max(1, innerHeight*DPR);
-    stars.style.width=innerWidth+'px'; stars.style.height=innerHeight+'px';
-    sctx.setTransform(DPR,0,0,DPR,0,0); W=innerWidth; H=innerHeight;
-    const tile=Math.max(1024, Math.min(2048, Math.ceil(Math.max(W,H)*0.9)));
-    starTiles=[ makeStarTile(tile, 1.2, true), makeStarTile(tile, 0.9, false) ];
+  function add(x,y){
+    const id = pts.length;
+    pts.push({x,y});
+    active.push(id);
+    const gx = Math.floor(x/cell), gy = Math.floor(y/cell);
+    grid[gridIndex(gx,gy)] = id;
   }
-  function drawStars(t){
-    sctx.clearRect(0,0,W,H);
-    const driftX=Math.cos(t*0.018)*3.0, driftY=Math.sin(t*0.015)*2.6;
-    for(let i=0;i<starTiles.length;i++){
-      const tile=starTiles[i], w=tile.width, h=tile.height;
-      let ox=((driftX*i*2)%w+w)%w, oy=((driftY*i*2)%h+h)%h;
-      for(let x=-ox; x<W; x+=w){ for(let y=-oy; y<H; y+=h){ sctx.drawImage(tile,x,y); } }
+
+  add(Math.random()*w, Math.random()*h);
+
+  while(active.length){
+    const aidx = (Math.random()*active.length)|0;
+    const pid  = active[aidx];
+    const p = pts[pid];
+    let placed=false;
+    for(let t=0;t<k;t++){
+      const ang = Math.random()*TAU;
+      const rad = r * (1 + Math.random()); // [r,2r)
+      let x = p.x + Math.cos(ang)*rad;
+      let y = p.y + Math.sin(ang)*rad;
+      if(x<0) x+=w; else if(x>=w) x-=w;
+      if(y<0) y+=h; else if(y>=h) y-=h;
+      if(fits(x,y)){ add(x,y); placed=true; break; }
     }
+    if(!placed) active.splice(aidx,1);
+  }
+  return pts;
+}
+
+function buildStars(){
+  starsNear=[]; starsFar=[]; starsBright=[];
+  const area=W*H;
+  const total=Math.floor(area*CFG.STAR_DENSITY);
+  const nearTarget=Math.floor(total*CFG.STAR_NEAR_RATIO);
+  const farTarget = total - nearTarget;
+  const brightTarget=CFG.STAR_BRIGHT;
+
+  const coeff = 2.3;
+  let r = Math.sqrt( (area) / (Math.max(200, farTarget) * coeff) );
+  r = clamp(r, 12, 36);
+
+  const farPts = poissonTileable(W,H,r,28);
+  let farList = farPts;
+  if(farPts.length > farTarget){
+    const step = farPts.length / farTarget;
+    farList = []; for(let i=0;i<farTarget;i++) farList.push(farPts[Math.floor(i*step)]);
+  }else if(farPts.length < farTarget){
+    farList = farPts.slice();
+    let need = farTarget - farPts.length;
+    while(need-- > 0) farList.push({x:Math.random()*W, y:Math.random()*H});
   }
 
-  /* ---------- Grain ---------- */
-  function drawGrain(){
-    const dpr=Math.min(devicePixelRatio||1, Q.dprCap);
-    grain.width=Math.max(1, innerWidth*dpr); grain.height=Math.max(1, innerHeight*dpr);
-    grain.style.width=innerWidth+'px'; grain.style.height=innerHeight+'px';
-    grctx.setTransform(dpr,0,0,dpr,0,0);
-    const w=innerWidth,h=innerHeight,tile=128, off=document.createElement('canvas'); off.width=tile; off.height=tile;
-    const o=off.getContext('2d'), id=o.createImageData(tile,tile), d=id.data;
-    for(let i=0;i*4<d.length;i++){ const v=(Math.random()*255)|0; d[i*4]=v; d[i*4+1]=v; d[i*4+2]=v; d[i*4+3]=10; }
-    o.putImageData(id,0,0); const pat=grctx.createPattern(off,'repeat'); grctx.clearRect(0,0,w,h); grctx.fillStyle=pat; grctx.fillRect(0,0,w,h);
+  const theta=CFG.STAR_BAND.angleDeg*Math.PI/180;
+  const bw=CFG.STAR_BAND.width*Math.min(W,H)*0.5;
+  function bandFactor(x,y){
+    const cx=x-W/2, cy=y-H/2;
+    const xr= cx*Math.cos(theta)+cy*Math.sin(theta);
+    const yr=-cx*Math.sin(theta)+cy*Math.cos(theta);
+    const d=Math.abs(yr);
+    return 0.85 + 0.30*Math.exp(-(d*d)/(bw*bw));
   }
 
-  /* ============================================================
-     Vortex(WebGL) — 검은 화면 원인 제거(안전 pow)
-  ============================================================ */
-  let gl=null, prog=null, frame=0, glScale=AutoQ.scale;
-  function initGL(){
-    try{
-      gl = glcv.getContext('webgl',{alpha:true, antialias:false, premultipliedAlpha:false, powerPreference:'high-performance', desynchronized:true});
-      if(!gl) throw new Error('WebGL NA');
+  for(const p of farList){
+    const f  = bandFactor(p.x,p.y);
+    const sz = rand(CFG.STAR_SIZE[0]*0.85, CFG.STAR_SIZE[1]) * (0.92 + 0.16*(f-1));
+    const tint = (Math.random()<0.65)?[220,235,255]:[255,235,210];
+    starsFar.push({ x:p.x, y:p.y, size:sz, tw:rand(CFG.STAR_TWINKLE[0], CFG.STAR_TWINKLE[1]), ph:Math.random()*TAU, depth:rand(0.06,0.55), tint });
+  }
 
-      const vs=`attribute vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0);} `;
-      const fs=`
-      precision mediump float;
-      uniform vec2 u_res; uniform float u_time, u_exposure, u_peak;
-      uniform float u_rotSpeed, u_swirl, u_falloff, u_noiseScale;
-      uniform float u_ringFreq, u_ringArms, u_ringGain;
-      uniform float u_coreSize, u_coreWarm, u_corePink;
-      uniform float u_jetAng, u_jetLen, u_jetW, u_jetGain;
-      uniform vec3 u_colDeep, u_colBlue, u_colTeal, u_colPink, u_colWarm;
-
-      /* --------- 유틸/노이즈 --------- */
-      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453123); }
-      float noise(vec2 p){ vec2 i=floor(p), f=fract(p);
-        float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
-        vec2 u=f*f*(3.0-2.0*f); return mix(mix(a,b,u.x), mix(c,d,u.x), u.y); }
-      float fbm(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<5;i++){ s+=a*noise(p); p*=2.02; a*=0.53; } return s; }
-      mat2 rot(float th){ float c=cos(th), s=sin(th); return mat2(c,-s,s,c); }
-      float posPow(float x, float e){ return pow(max(x,0.0), e); }  /* ★ 안전 pow(검은 화면 원인 제거) */
-
-      vec3 ACES(vec3 x){
-        const mat3 m1=mat3(0.59719,0.35458,0.04823, 0.07600,0.90834,0.01566, 0.02840,0.13383,0.83777);
-        const mat3 m2=mat3(1.60475,-0.53108,-0.07367, -0.10208,1.10813,-0.00605, -0.00327,-0.07276,1.07602);
-        vec3 v=m1*x; v=(v*(v+0.0245786)-0.000090537*v*v*v)/(v*(0.983729*v+0.4329510)+0.238081); return clamp(m2*v,0.0,1.0);
+  function sampleWeighted(n, sizeScale=1){
+    const arr=[];
+    while(arr.length<n){
+      const x=Math.random()*W, y=Math.random()*H;
+      if(Math.random()<0.72 + 0.28*(bandFactor(x,y)-1)){
+        const r=Math.random();
+        const tint=(r<0.5)?[255,255,255]:(r<0.75)?[205,230,255]:[255,220,180];
+        arr.push({ x,y, size:rand(CFG.STAR_SIZE[0], CFG.STAR_SIZE[1])*sizeScale,
+                   tw:rand(CFG.STAR_TWINKLE[0], CFG.STAR_TWINKLE[1]), ph:Math.random()*TAU, depth:rand(0.55,1.00), tint });
       }
+    }
+    return arr;
+  }
+  starsNear   = sampleWeighted(nearTarget, 1.08);
+  starsBright = sampleWeighted(brightTarget, 1.5);
+}
 
-      void main(){
-        vec2 uv=(gl_FragCoord.xy/u_res)*2.0-1.0; uv.x*=u_res.x/u_res.y;
-        float r=length(uv)+1e-6;
-        float ang=atan(uv.y,uv.x);
+/* ---------- 풀스크린 노이즈 ---------- */
+let noiseFull=null;
+function rebuildNoise(){
+  noiseFull = document.createElement('canvas');
+  noiseFull.width  = canvas.width;
+  noiseFull.height = canvas.height;
+  const x = noiseFull.getContext('2d');
+  const img = x.createImageData(noiseFull.width, noiseFull.height);
+  for(let i=0;i<img.data.length;i+=4){
+    const v=(Math.random()*255)|0;
+    img.data[i]=img.data[i+1]=img.data[i+2]=v; img.data[i+3]=255;
+  }
+  x.putImageData(img,0,0);
+}
 
-        // 소용돌이 좌표
-        float twist=u_swirl*exp(-r*u_falloff);
-        float theta=ang + twist + u_time*u_rotSpeed;
-        vec2 p=vec2(cos(theta), sin(theta))*r;
+/* ---------- 리사이즈 / 버퍼 ---------- */
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  W=Math.floor(innerWidth); H=Math.floor(innerHeight); DIAG=Math.ceil(Math.hypot(W,H));
 
-        // 구름/디스크
-        float n  = fbm(p*u_noiseScale + vec2(0.0, u_time*0.12));
-        float n2 = fbm(rot(1.3)*p*u_noiseScale*0.5 + vec2(u_time*0.05, 0.0));
+  canvas.width=Math.floor(W*dpr); canvas.height=Math.floor(H*dpr);
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  front.setTransform(1,0,0,1,0,0);
 
-        // 스파이럴 팔/링
-        float logR = log(max(r, 1e-3));
-        float spiral = 0.5 + 0.5*cos(u_ringArms*ang - logR*u_ringFreq + u_time*0.25);
-        float ring   = smoothstep(0.02, 0.0, abs(fract((logR*0.75 - ang*0.1)*2.0)-0.5));
-        float disk   = posPow(1.0-r, 0.35) * (0.6+0.4*n) * (0.55+0.45*spiral) + 0.35*ring;
+  needsBackResize = true;
 
-        // 색 혼합
-        vec3 col = u_colDeep;
-        col = mix(col, u_colBlue, clamp(disk, 0.0, 1.0));
-        col = mix(col, u_colTeal, clamp(n*0.8, 0.0, 1.0));
-        col += (u_colPink * (0.25 + 0.75*n2)) * (0.55*posPow(1.0-r,1.2));
+  starSmall  = radialSprite(64,false);
+  starBright = radialSprite(128,true);
 
-        // 코어/링
-        float core = exp(-pow(r/u_coreSize, 2.0));
-        vec3 coreCol = u_colWarm*u_coreWarm*core + u_colPink*u_corePink*sqrt(core);
-        col += coreCol;
-        float ringR=u_coreSize*1.3, rr=abs(r-ringR);
-        float thin = exp(-pow(rr/(u_coreSize*0.25), 2.0)) * u_ringGain;
-        col += mix(u_colPink, u_colWarm, 0.5) * thin;
+  buildNebulaAndDust();
+  buildStars();
+  rebuildNoise();
+}
+addEventListener('resize', resize, {passive:true});
 
-        // 제트(대각선, 양방향)
-        mat2 R=rot(u_jetAng); vec2 q=R*uv;
-        float along=abs(q.y), side=q.x;
-        float jet=exp(-pow(side/(u_jetW+0.005),2.0)) * smoothstep(0.0, u_jetLen, 1.0 - along);
-        vec3 jetCol=mix(vec3(0.72,0.88,1.00), vec3(0.95,0.98,1.0), 0.6);
-        col += jetCol * jet * u_jetGain;
+function ensureBackBuffer(){
+  if(!needsBackResize && backCanvas) return;
+  backCanvas = document.createElement('canvas');
+  backCanvas.width  = canvas.width;
+  backCanvas.height = canvas.height;
+  back = backCanvas.getContext('2d', { alpha:true });
+  back.imageSmoothingEnabled = true;
+  back.setTransform(dpr,0,0,dpr,0,0); // CSS px 좌표계
+  needsBackResize = false;
+}
 
-        // 노출/톤매핑/소프트 피크
-        col = 1.0 - exp(-col * u_exposure);
-        col = ACES(col);
-        float m=max(col.r, max(col.g, col.b));
-        if(m>u_peak) col*=u_peak/m;
+/* ---------- 입력(패럴랙스) ---------- */
+const mouse={x:0.5,y:0.5}, target={x:0.5,y:0.5};
+addEventListener('mousemove', e=>{ target.x=e.clientX/W; target.y=e.clientY/H; }, {passive:true});
+addEventListener('touchmove', e=>{ const t=e.touches[0]; target.x=t.clientX/W; target.y=t.clientY/H; }, {passive:true});
+(function track(){ mouse.x+=(target.x-mouse.x)*0.08; mouse.y+=(target.y-mouse.y)*0.08; requestAnimationFrame(track); })();
 
-        // 안전 최소치(완전 흑 방지)
-        col = max(col, u_colDeep*0.04);
+/* ===================== 유성(깊이) ===================== */
+const meteors=[]; const dustPool=[]; const activeDust=[];
+let meteorAcc=0;
 
-        gl_FragColor=vec4(col,1.0);
-      }`;
+function hexToRgb(h){ const n=parseInt(h.slice(1),16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}; }
+function rgbaStr({r,g,b}, a){ return `rgba(${r},${g},${b},${a})`; }
+function makeTailGradient(ctx, L, palette, aCap){
+  const g = ctx.createLinearGradient(0,0,-L,0);
+  const N = palette.length;
+  for(let i=0;i<N;i++){
+    const c=hexToRgb(palette[i]); const t=i/(N-1); const a=aCap*(1.0-0.6*t);
+    g.addColorStop(t, rgbaStr(c,a));
+  }
+  return g;
+}
+function pickDepthIndex(){
+  const w = CFG.METEOR.DEPTH.weights;
+  const r = Math.random(), a=w[0], b=a+w[1];
+  return r<a ? 0 : (r<b ? 1 : 2);
+}
+function spawnMeteor(){
+  if(meteors.length >= CFG.METEOR.maxActive) return;
+  const deg = rand(CFG.METEOR.angleDeg[0], CFG.METEOR.angleDeg[1]);
+  const a   = deg*Math.PI/180, dir={x:Math.cos(a), y:Math.sin(a)};
+  const zi  = pickDepthIndex(), D=CFG.METEOR.DEPTH;
+  const spd = rand(CFG.METEOR.speed[0],  CFG.METEOR.speed[1])  * D.speedMul[zi];
+  const len = rand(CFG.METEOR.length[0], CFG.METEOR.length[1]) * D.lengthMul[zi];
+  const wid = rand(CFG.METEOR.width[0],  CFG.METEOR.width[1])  * D.widthMul[zi];
+  const bMul= D.brightMul[zi];
 
-      const mkSh=(t,s)=>{const sh=gl.createShader(t); gl.shaderSource(sh,s); gl.compileShader(sh); if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh;};
+  const cx=W/2, cy=H/2;
+  const R = Math.hypot(W,H)*0.75 + len + 80;
+  const jitter = (Math.random()-0.5) * Math.min(W,H)*0.35;
+  const perp = {x:-dir.y, y:dir.x};
 
-      prog=gl.createProgram();
-      gl.attachShader(prog, mkSh(gl.VERTEX_SHADER, vs));
-      gl.attachShader(prog, mkSh(gl.FRAGMENT_SHADER, fs));
-      gl.linkProgram(prog);
-      if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  const sx = cx - dir.x*R + perp.x*jitter;
+  const sy = cy - dir.y*R + perp.y*jitter;
 
-      const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
-      const loc=gl.getAttribLocation(prog,'a'); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0); gl.enableVertexAttribArray(loc);
+  const palette = CFG.METEOR.palettes[(Math.random()*CFG.METEOR.palettes.length)|0];
+  const dustRateBase = rand(CFG.METEOR.dust.ratePerSec[0], CFG.METEOR.dust.ratePerSec[1]);
+  const dustRate = dustRateBase * (0.8 + zi*0.3);
 
-      gl.useProgram(prog);
-      resizeGL(true);
-    }catch(e){
-      console.warn('WebGL disabled', e);
-      gl=null; glcv.style.display='none';  // Fallback: 별/그레인만 표시
+  meteors.push({
+    x:sx, y:sy, a, zi, vx:dir.x*spd, vy:dir.y*spd,
+    len, wid, alpha: CFG.METEOR.brightness*bMul,
+    palette, dustRate, dustAcc:0, age:0, visible:false
+  });
+}
+function updateDust(dt){
+  for(let i=activeDust.length-1;i>=0;i--){
+    const p=activeDust[i]; p.life-=dt;
+    if(p.life<=0){ activeDust.splice(i,1); dustPool.push(p); continue; }
+    p.x += p.vx*dt; p.y += p.vy*dt;
+  }
+}
+function drawDust(){
+  back.globalCompositeOperation='screen';
+  for(let i=0;i<activeDust.length;i++){
+    const p=activeDust[i];
+    const a=Math.min(CFG.BRIGHT_CAP, (p.life/p.max)*0.80*CFG.EXPOSURE);
+    const r=p.size*(1+(1-p.life/p.max)*0.6);
+    back.save(); back.translate(p.x,p.y);
+    const g=back.createRadialGradient(0,0,0,0,0,r*2.2);
+    g.addColorStop(0, rgbaStr(p.rgb,a)); g.addColorStop(1,'rgba(0,0,0,0)');
+    back.fillStyle=g; back.beginPath(); back.arc(0,0,r,0,TAU); back.fill();
+    back.restore();
+  }
+}
+function updateMeteors(dt){
+  const toDraw=[];
+  meteorAcc += CFG.METEOR.ratePerSec*dt;
+  while(meteorAcc>=1){ meteorAcc-=1; spawnMeteor();
+    if(Math.random()<CFG.METEOR.burstChance){ const extra=1+(Math.random()<0.5?0:1); for(let k=0;k<extra;k++) spawnMeteor(); }
+  }
+  for(let i=meteors.length-1; i>=0; i--){
+    const m = meteors[i];
+    m.age += dt; m.x += m.vx*dt; m.y += m.vy*dt;
+    const off=120+m.len;
+    const inside=(m.x>-off&&m.x<W+off&&m.y>-off&&m.y<H+off);
+    if(inside && !m.visible) m.visible=true;
+    if(!inside && m.visible && m.age>CFG.METEOR.fadeIn){ meteors.splice(i,1); continue; }
+
+    const paraMul = CFG.METEOR.DEPTH.paraMul[m.zi];
+    const px = m.x + (mouse.x-0.5)*10*paraMul;
+    const py = m.y + (mouse.y-0.5)*10*paraMul;
+
+    let lifeAlpha=1.0;
+    if(m.visible) lifeAlpha *= Math.min(1, m.age/CFG.METEOR.fadeIn);
+    const edge = Math.min(px, W-px, py, H-py);
+    if(edge < 80) lifeAlpha *= clamp(edge/80, 0, 1);
+
+    m.dustAcc += m.dustRate*dt;
+    const inv=1/Math.hypot(m.vx,m.vy); const backX=-m.vx*inv, backY=-m.vy*inv;
+    while(m.dustAcc>=1){
+      m.dustAcc-=1;
+      const spread = rand(CFG.METEOR.dust.spread[0], CFG.METEOR.dust.spread[1]);
+      const ox=backX*rand(0, m.len*0.35)+(Math.random()-0.5)*spread;
+      const oy=backY*rand(0, m.len*0.35)+(Math.random()-0.5)*spread;
+      const life = rand(CFG.METEOR.dust.life[0], CFG.METEOR.dust.life[1])*(0.9+0.2*m.zi);
+      const size = rand(CFG.METEOR.dust.size[0], CFG.METEOR.dust.size[1])*(0.9+0.3*m.zi);
+      const vb   = rand(CFG.METEOR.dust.speedBack[0], CFG.METEOR.dust.speedBack[1])*(0.9+0.25*m.zi);
+      const rgb  = hexToRgb(m.palette[(Math.random()*m.palette.length)|0]);
+      const p=(dustPool.length>0)?dustPool.pop():{};
+      p.x=px+ox; p.y=py+oy; p.vx=backX*vb+(Math.random()-0.5)*10; p.vy=backY*vb+(Math.random()-0.5)*10;
+      p.life=life; p.max=life; p.size=size; p.rgb=rgb; activeDust.push(p);
+    }
+
+    toDraw.push({
+      px, py, a:m.a, zi:m.zi,
+      L: m.len*lifeAlpha, W: Math.max(1.2, m.wid),
+      aCap: Math.min(CFG.BRIGHT_CAP, 0.90*CFG.EXPOSURE*m.alpha*lifeAlpha),
+      palette: m.palette
+    });
+  }
+  toDraw.sort((A,B)=> A.zi - B.zi);
+  return toDraw;
+}
+function drawMeteors(list){
+  back.globalCompositeOperation='screen';
+  for(const m of list){
+    back.save(); back.translate(m.px, m.py); back.rotate(m.a);
+    const blurPx = CFG.METEOR.DEPTH.blurPx[m.zi];
+    const oldFilter = back.filter || 'none';
+    if(('filter' in back) && blurPx>0){ try{ back.filter = `blur(${blurPx}px)`; }catch(e){} }
+    back.fillStyle = makeTailGradient(back, m.L, m.palette, m.aCap);
+    back.globalAlpha=1; back.fillRect(-m.L, -m.W*0.5, m.L, m.W);
+    if(('filter' in back) && blurPx>0){ try{ back.filter = oldFilter; }catch(e){} }
+    const headR=Math.max(2.6, m.W*CFG.METEOR.headGlow*(0.95+0.1*m.zi));
+    const headRgb=hexToRgb(m.palette[0]);
+    const hg=back.createRadialGradient(0,0,0,0,0,headR);
+    hg.addColorStop(0, rgbaStr(headRgb, m.aCap));
+    hg.addColorStop(0.5, rgbaStr(headRgb, m.aCap*0.55));
+    hg.addColorStop(1, 'rgba(0,0,0,0)');
+    back.fillStyle=hg; back.beginPath(); back.arc(0,0,headR,0,TAU); back.fill();
+    back.restore();
+  }
+}
+
+/* ===================== 별(Seam‑Free 교차 페이드) ===================== */
+function sstep(t){ return t<=0?0 : t>=1?1 : t*t*(3-2*t); }
+function crossfadeWeights(pos, size, margin){
+  let base = 1, left = 0, right = 0;
+  if(pos < margin){ const k = sstep(pos / margin); base = k; left = 1 - k; }
+  else if(pos > size - margin){ const k = sstep((size - pos) / margin); base = k; right = 1 - k; }
+  return {base, left, right};
+}
+function drawStarsSeamFree(list, sprite, boost, tNow){
+  back.globalCompositeOperation='screen';
+  const Rc=0.55*Math.min(W,H);
+  const flowX=starFlowX, flowY=starFlowY;
+
+  for(let i=0;i<list.length;i++){
+    const s=list[i];
+    let x0 = (s.x + flowX*s.depth) % W; if(x0<0) x0+=W;
+    let y0 = (s.y + flowY*s.depth) % H; if(y0<0) y0+=H;
+
+    const wx = crossfadeWeights(x0, W, CFG.TILE_MARGIN);
+    const wy = crossfadeWeights(y0, H, CFG.TILE_MARGIN);
+
+    const tilesX = [{dx:0,w:wx.base},{dx:-W,w:wx.left},{dx:+W,w:wx.right}];
+    const tilesY = [{dy:0,w:wy.base},{dy:-H,w:wy.left},{dy:+H,w:wy.right}];
+
+    for(const tx of tilesX){
+      if(tx.w<=0.001) continue;
+      for(const ty of tilesY){
+        if(ty.w<=0.001) continue;
+
+        let x = x0 + tx.dx, y = y0 + ty.dy;
+        const cx0=x-W/2, cy0=y-H/2;
+
+        const rNorm=Math.min(1, Math.hypot(cx0,cy0)/Rc);
+        const depthEff=clamp(s.depth + CFG.CENTER_DEPTH_STRENGTH*(1-rNorm), 0, 1);
+
+        const a=starSwirl*(0.5+0.5*depthEff), cs=Math.cos(a), sn=Math.sin(a);
+        const cx1=(cx0*cs - cy0*sn) + (mouse.x-0.5)*CFG.STAR_PARA*depthEff;
+        const cy1=(cx0*sn + cy0*cs) + (mouse.y-0.5)*CFG.STAR_PARA*depthEff;
+        const px=W/2+cx1, py=H/2+cy1;
+
+        const amp=CFG.STAR_TWINKLE_AMP;
+        const tw=1.0 - amp + amp*Math.sin(tNow*s.tw + s.ph + 0.001*i);
+        const alphaBase=clamp(0.76*CFG.EXPOSURE*boost, 0, CFG.BRIGHT_CAP);
+        let alpha=Math.min(alphaBase*tw*(0.95+0.10*rNorm), CFG.BRIGHT_CAP);
+        alpha *= (tx.w * ty.w);
+
+        const sizeCenter=0.85+0.25*rNorm;
+        const r=s.size*sizeCenter*(1 + 0.20*(1 - tw));
+
+        back.save(); back.translate(px,py);
+        back.globalAlpha=alpha; back.drawImage(sprite,-r,-r,r*2,r*2);
+        back.globalAlpha=Math.min(alpha*0.18, CFG.BRIGHT_CAP);
+        back.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${back.globalAlpha})`;
+        back.beginPath(); back.arc(0,0,r*0.9,0,TAU); back.fill();
+        back.restore();
+      }
     }
   }
+}
 
-  function resizeGL(force=false){
-    if(!gl) return;
-    const dpr=Math.min(devicePixelRatio||1,  Q.dprCap);
-    const sc = glScale;
-    const w=Math.max(1,(innerWidth * dpr * sc)|0);
-    const h=Math.max(1,(innerHeight* dpr * sc)|0);
-    if(force || glcv.width!==w || glcv.height!==h){
-      glcv.width=w; glcv.height=h; glcv.style.width=innerWidth+'px'; glcv.style.height=innerHeight+'px';
-      gl.viewport(0,0,w,h);
-    }
+/* ===================== 메인 루프 ===================== */
+let tPrev=performance.now()/1000;
+function draw(){
+  ensureBackBuffer();
+  const tNow=performance.now()/1000; const dt=Math.min(0.05, tNow-tPrev); tPrev=tNow;
+
+  // 전역 흐름(연속)
+  const recenter=(v,limit)=> (Math.abs(v)>limit? v%limit : v);
+  starFlowX += CFG.FLOW.stars.vx*dt; starFlowY += CFG.FLOW.stars.vy*dt; starSwirl += CFG.FLOW.stars.swirl*dt;
+  nebFlowX  += CFG.FLOW.nebula.vx*dt; nebFlowY  += CFG.FLOW.nebula.vy*dt; nebRot   += CFG.FLOW.nebula.rot*dt;
+  dustFlowX += CFG.FLOW.dust.vx*dt;  dustFlowY += CFG.FLOW.dust.vy*dt;  dustRot   += CFG.FLOW.dust.rot*dt;
+  const LIMX=W*1000, LIMY=H*1000;
+  starFlowX=recenter(starFlowX,LIMX); starFlowY=recenter(starFlowY,LIMY);
+  nebFlowX=recenter(nebFlowX,LIMX);   nebFlowY=recenter(nebFlowY,LIMY);
+  dustFlowX=recenter(dustFlowX,LIMX); dustFlowY=recenter(dustFlowY,LIMY);
+
+  // 백버퍼 초기화
+  back.globalCompositeOperation='source-over';
+  back.globalAlpha=1; back.fillStyle=CFG.BASE_COLOR; back.fillRect(0,0,W,H);
+
+  // 성운(screen + 브리딩)
+  const breath = 1.0 + CFG.FLOW.nebula.breathAmp * Math.sin(TAU * CFG.FLOW.nebula.breathHz * tNow);
+  for(const L of nebulaLayers){
+    L.offsetX += L.drift.sx*DIAG*dt; L.offsetY += L.drift.sy*DIAG*dt; L.rot += L.drift.rot*DIAG*dt*0.0001;
+    const w=L.canvas.width*L.scale/dpr, h=L.canvas.height*L.scale/dpr;
+    back.save();
+    back.translate(W/2 + L.offsetX + nebFlowX, H/2 + L.offsetY + nebFlowY);
+    back.rotate(L.rot + nebRot);
+    back.globalCompositeOperation='screen';
+    back.globalAlpha=Math.min(CFG.BRIGHT_CAP, 0.82*CFG.EXPOSURE*breath);
+    back.drawImage(L.canvas, -w/2, -h/2, w, h);
+    back.restore();
   }
 
-  function renderGL(t){
-    if(!gl) return;
-    if((frame++ % (AutoQ.skip+1))!==0) return;
-    gl.useProgram(prog);
-    const U=n=>gl.getUniformLocation(prog,n);
-    gl.uniform2f(U('u_res'), glcv.width, glcv.height);
-    gl.uniform1f(U('u_time'), t);
-    gl.uniform1f(U('u_exposure'), Q.exposure);
-    gl.uniform1f(U('u_peak'), Q.peakWhite);
-
-    gl.uniform1f(U('u_rotSpeed'), Q.vortex.rotSpeed);
-    gl.uniform1f(U('u_swirl'),    Q.vortex.swirl);
-    gl.uniform1f(U('u_falloff'),  Q.vortex.falloff);
-    gl.uniform1f(U('u_noiseScale'), Q.vortex.noiseScale);
-
-    gl.uniform1f(U('u_ringFreq'), Q.ring.freq);
-    gl.uniform1f(U('u_ringArms'), Q.ring.arms);
-    gl.uniform1f(U('u_ringGain'), Q.ring.gain);
-
-    gl.uniform1f(U('u_coreSize'), Q.core.size);
-    gl.uniform1f(U('u_coreWarm'), Q.core.warmGain);
-    gl.uniform1f(U('u_corePink'), Q.core.pinkGain);
-
-    gl.uniform1f(U('u_jetAng'),  Q.jet.angle);
-    gl.uniform1f(U('u_jetLen'),  Q.jet.length);
-    gl.uniform1f(U('u_jetW'),    Q.jet.width);
-    gl.uniform1f(U('u_jetGain'), Q.jet.gain);
-
-    const set3=(n,a)=>gl.uniform3f(U(n),a[0],a[1],a[2]);
-    set3('u_colDeep', Q.col.deep); set3('u_colBlue', Q.col.blue);
-    set3('u_colTeal', Q.col.teal); set3('u_colPink', Q.col.pink); set3('u_colWarm', Q.col.warm);
-
-    gl.drawArrays(gl.TRIANGLES,0,3);
+  // 먼지(감광)
+  if(dustLayer){
+    back.save();
+    back.translate(W/2 + dustFlowX, H/2 + dustFlowY);
+    back.rotate(dustRot);
+    back.globalCompositeOperation='destination-out';
+    back.globalAlpha=0.8;
+    const dw=dustLayer.width/dpr, dh=dustLayer.height/dpr;
+    back.drawImage(dustLayer, -dw/2, -dh/2, dw, dh);
+    back.restore();
   }
 
-  /* ---------- 리사이즈/루프 ---------- */
-  function resizeAll(forceGL=false){
-    [stars, grain, glcv].forEach(c=>{c.width=1;c.height=1;});
-    initStars(); drawGrain(); resizeGL(forceGL);
-    drawStars(0); renderGL(0);
+  // 별
+  drawStarsSeamFree(starsFar   , starSmall , 0.90, tNow);
+  drawStarsSeamFree(starsNear  , starSmall , 1.00, tNow);
+  drawStarsSeamFree(starsBright, starBright, 1.10, tNow);
+
+  // 유성 + 스타더스트
+  const renderList = updateMeteors(dt);
+  updateDust(dt);
+  drawDust();
+  drawMeteors(renderList);
+
+  // 노이즈(미약)
+  if(CFG.NOISE.alpha>0 && noiseFull){
+    back.save();
+    back.setTransform(1,0,0,1,0,0);
+    back.globalAlpha = CFG.NOISE.alpha;
+    back.drawImage(noiseFull, 0, 0);
+    back.setTransform(dpr,0,0,dpr,0,0);
+    back.restore();
   }
-  addEventListener('resize', ()=>resizeAll(true), {passive:true});
 
-  let rafId=0;
-  function tick(now){
-    const {t, dtMs}=Clock.tick(now);
-    drawStars(t); renderGL(t);
-    if (AutoQ.sample(dtMs, now)){ const s=AutoQ.scale; if(Math.abs(s-glScale)>0.01){ glScale=s; resizeGL(true); } }
-    rafId=requestAnimationFrame(tick);
-  }
-  document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(rafId) cancelAnimationFrame(rafId); rafId=0; } else { Clock.last=performance.now(); rafId=requestAnimationFrame(tick); } });
+  // 백 → 프런트 (픽셀‑퍼펙트). 일부 브라우저에서 'copy' 미지원 대비
+  try{ front.globalCompositeOperation='copy'; }
+  catch(e){ front.globalCompositeOperation='source-over'; }
+  front.drawImage(backCanvas, 0, 0);
 
-  /* ---------- Boot & 단축키 ---------- */
-  function boot(){ initGL(); resizeAll(true); if(!prefersReduced) rafId=requestAnimationFrame(tick); else { drawStars(0); renderGL(0);} }
-  // 빠른 튜닝
-  addEventListener('keydown', (e)=>{
-    if(e.key==='1') Q.jet.angle += 0.15;
-    if(e.key==='2') Q.jet.gain  = (Q.jet.gain>0.75)?0.55:0.80;
-    if(e.key==='3') Q.vortex.rotSpeed = (Q.vortex.rotSpeed>0.06)?0.03:0.08;
-  }, {passive:true});
+  requestAnimationFrame(draw);
+}
 
-  boot();
-})();
+/* ---------- 시작 ---------- */
+resize();
+requestAnimationFrame(draw);
+setTimeout(()=>{ for(let i=0;i<2;i++) spawnMeteor(); }, 350);
+
+/* ---------- 퍼블릭 튜닝 ---------- */
+window.CosmosPro = {
+  stars({density, nearRatio}={}){
+    if(density)   CFG.STAR_DENSITY   = clamp(density, 1/5000, 1/800);
+    if(nearRatio!==undefined) CFG.STAR_NEAR_RATIO = clamp(nearRatio, 0.10, 0.60);
+    buildStars();
+  },
+  setBrightness(v){ CFG.EXPOSURE = clamp(v,0.85,1.25); }
+};
 </script>
 </body>
 </html>

@@ -118,7 +118,7 @@ export const GameBoard = ({
                                     border: '1px solid gray'
                                 };
                                 return (
-                                  <>
+                                  <React.Fragment key={`stone-${r_idx}-${c_idx}`}>
                                     <div key={`s-${r_idx}-${c_idx}`} className={stoneClasses} style={stoneStyle} />
                                     {isLast && !isWinStone && (
                                       <div key={`r-${r_idx}-${c_idx}`} className="stone-ripple" style={{
@@ -128,7 +128,7 @@ export const GameBoard = ({
                                         height: stoneSize,
                                       }} />
                                     )}
-                                  </>
+                                  </React.Fragment>
                                 );
                             }
                             return null;
@@ -149,3 +149,4 @@ export const GameBoard = ({
         </div>
     );
 };
+

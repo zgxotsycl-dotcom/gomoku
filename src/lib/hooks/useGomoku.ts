@@ -297,6 +297,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                     startTime: useSwap2Flow ? null : Date.now(),
                     difficulty: state.difficulty,
                     aiPlayer: aiRand,
+                    playerRole: isPva ? (aiRand === 'white' ? 'black' : 'white') : null,
                     turnTimeLimit: BASE_TURN_TIME,
                     turnTimeRemaining: BASE_TURN_TIME,
                     aiKnowledge: state.aiKnowledge,
@@ -307,6 +308,9 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
             // 첫 시작: PvA Normal만 색상 선택 오버레이 사용, Easy는 즉시 시작(사용자=흑, AI=백)
             const isPvaNormal = (gameMode === 'pva' && state.difficulty === 'normal');
             const waitStart = (isPvaNormal || gameMode === 'pvo' || gameMode === 'spectate');
+            const baseAiPlayer: Player = gameMode === 'pva'
+                ? (state.difficulty === 'easy' ? 'white' : state.aiPlayer)
+                : (Math.random() < 0.5 ? 'black' : 'white');
             return {
                 ...initialState,
                 gameMode,
@@ -314,17 +318,18 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 gameState: waitStart ? 'waiting' : 'playing',
                 startTime: waitStart ? null : Date.now(),
                 difficulty: state.difficulty,
-                aiPlayer: gameMode === 'pva'
-                  ? (state.difficulty === 'easy' ? 'white' : state.aiPlayer)
-                  : (Math.random() < 0.5 ? 'black' : 'white'),
+                aiPlayer: baseAiPlayer,
+                playerRole: gameMode === 'pva' && !isPvaNormal ? (baseAiPlayer === 'white' ? 'black' : 'white') : null,
                 turnTimeLimit: BASE_TURN_TIME,
                 turnTimeRemaining: BASE_TURN_TIME,
                 aiKnowledge: state.aiKnowledge, // Preserve loaded knowledge
-                showColorSelect: isPvaNormal,
+                showColorSelect: false,
             };
         }
-        case 'SET_AI_PLAYER':
-            return { ...state, aiPlayer: action.payload };
+        case 'SET_AI_PLAYER': {
+            const nextPlayerRole = state.gameMode === 'pva' ? (action.payload === 'white' ? 'black' : 'white') : state.playerRole;
+            return { ...state, aiPlayer: action.payload, playerRole: nextPlayerRole };
+        }
         case 'SET_USER_PROFILE':
             return { ...state, userProfile: action.payload };
         case 'ENTER_WHAT_IF': {
@@ -392,14 +397,35 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
     }
 }
 export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectateRoomId: string | null, replayGame: Game | null) => {
-    const [state, dispatch] = useReducer(gomokuReducer, {
-        ...initialState,
-        gameMode: initialGameMode,
-        // PVA도 초기에는 색상 선택을 위해 'waiting'으로 시작 (타이머/AI 정지)
-        gameState: replayGame ? 'replay' : ((initialGameMode === 'pvo' || initialGameMode === 'spectate' || initialGameMode === 'pva') ? 'waiting' : 'playing'),
-        history: replayGame ? replayGame.moves : [],
-        startTime: (initialGameMode !== 'pvo' && initialGameMode !== 'spectate' && !replayGame) ? Date.now() : null
-    });
+    const [state, dispatch] = useReducer(
+        gomokuReducer,
+        initialState,
+        () => {
+            const base = {
+                ...initialState,
+                gameMode: initialGameMode,
+                // Keep PvA in 'waiting' until color selection finishes (timer/AI paused)
+                gameState: replayGame
+                    ? 'replay'
+                    : ((initialGameMode === 'pvo' || initialGameMode === 'spectate' || initialGameMode === 'pva') ? 'waiting' : 'playing'),
+                history: replayGame ? replayGame.moves : [],
+                startTime: (initialGameMode !== 'pvo' && initialGameMode !== 'spectate' && !replayGame) ? Date.now() : null,
+            };
+
+            if (!replayGame && initialGameMode === 'pva' && typeof window !== 'undefined') {
+                try {
+                    const stored = sessionStorage.getItem('pva_difficulty');
+                    if (stored === 'easy' || stored === 'normal') {
+                        base.difficulty = stored;
+                    }
+                } catch (_) {
+                    // ignore storage access issues
+                }
+            }
+
+            return base;
+        }
+    );
 
     const { t } = useTranslation();
     const { user } = useAuth();
@@ -469,7 +495,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             if (!user) return;
             if (state.gameMode !== 'pva') return;
             if (state.difficulty !== 'normal') return;
-            const userColor: Player = state.aiPlayer === 'white' ? 'black' : 'white';
+            const userColor: Player = state.playerRole ?? (state.aiPlayer === 'white' ? 'black' : 'white');
             const win = state.winner === userColor;
             const delta = win ? 30 : -29;
             // fetch current, then update to avoid race
@@ -480,7 +506,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             setEloUpdated(true);
         };
         applyPvaElo();
-    }, [state.gameState, state.gameMode, state.difficulty, state.winner, state.aiPlayer, user, eloUpdated]);
+    }, [state.gameState, state.gameMode, state.difficulty, state.winner, state.aiPlayer, state.playerRole, user, eloUpdated]);
 
     // Replay board update logic
     useEffect(() => {
@@ -495,7 +521,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
             }
             dispatch({ type: 'SET_BOARD', payload: newBoard });
         }
-    }, [state.replayMoveIndex, state.gameState, state.history]);
+    }, [state.replayMoveIndex, state.gameState, state.history, state.board.length]);
 
     // Replay auto-play logic
     useEffect(() => {
@@ -668,7 +694,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
 
         getAiMoveFromServer();
 
-    }, [state.currentPlayer, state.gameMode, state.aiPlayer, state.winner, state.gameState, state.board, state.turnTimeRemaining, state.turnTimeLimit, state.difficulty, dispatch]);
+    }, [state.currentPlayer, state.gameMode, state.aiPlayer, state.winner, state.gameState, state.board, state.history, state.turnTimeRemaining, state.turnTimeLimit, state.difficulty, state.isAiThinking, dispatch]);
 
     // What If AI Turn Logic
     useEffect(() => {
@@ -722,3 +748,4 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
 
     return { state, dispatch, socketRef };
 };
+

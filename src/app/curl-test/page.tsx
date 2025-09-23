@@ -16,7 +16,7 @@ export default function CurlTestPage() {
           >
             {open ? 'Close (Roll Up)' : 'Open (Roll Down)'}
           </button>
-          <span className="opacity-70">mode="top" / easing="quint" / 1500ms</span>
+          <span className="opacity-70">mode=&quot;top&quot; / easing=&quot;quint&quot; / 1500ms</span>
         </div>
         <PageCurl open={open} mode="top" durationMs={1500} easing="quint" curlStrength={1.1}>
           <div className="p-6 bg-gray-900/70 rounded-xl border border-white/10">

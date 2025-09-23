@@ -229,4 +229,5 @@ const Ranking = forwardRef<HTMLDivElement, {}>((_props, ref) => {
   );
 });
 
+Ranking.displayName = 'Ranking';
 export default Ranking;

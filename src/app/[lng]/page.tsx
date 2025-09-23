@@ -137,7 +137,7 @@ export default function Home() {
   const [showPvaDifficulty, setShowPvaDifficulty] = useState(false);
   // PVA 프리로드 로딩 화면 상태
   const [pvaLoading, setPvaLoading] = useState(false);
-  const pvaTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pvaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -199,6 +199,13 @@ export default function Home() {
       if (pvaTimerRef.current) clearTimeout(pvaTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedGameMode !== 'pva') return;
+    if (!pvaLoading) return;
+    const failSafe = window.setTimeout(() => setPvaLoading(false), 5000);
+    return () => window.clearTimeout(failSafe);
+  }, [selectedGameMode, pvaLoading]);
 
   // PVA 배경 사전 로딩을 전역 iframe으로 유지(React 언마운트에 영향받지 않도록)
   useEffect(() => {
@@ -290,7 +297,11 @@ export default function Home() {
             />
           ) : selectedGameMode ? (
             <div className="flex flex-col items-center w-full">
-              <Board initialGameMode={selectedGameMode} onExit={handleBackToMenu} />
+              <Board
+                initialGameMode={selectedGameMode}
+                onExit={handleBackToMenu}
+                loadingOverlayActive={selectedGameMode === 'pva' ? pvaLoading : false}
+              />
             </div>
           ) : (
             <div className="text-center">
@@ -456,9 +467,9 @@ export default function Home() {
             setShowPvaDifficulty(false);
             // 난이도 선택 후 1.5초 로딩 화면으로 이동하며 PVA 배경 미리 로딩
             setPvaLoading(true);
+            setSelectedGameMode('pva');
             if (pvaTimerRef.current) { clearTimeout(pvaTimerRef.current); }
-            pvaTimerRef.current = setTimeout(() => {
-              setSelectedGameMode('pva');
+            pvaTimerRef.current = window.setTimeout(() => {
               setPvaLoading(false);
             }, 1500);
           }}

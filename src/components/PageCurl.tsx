@@ -22,7 +22,6 @@ interface PageCurlProps {
 // Lightweight wrapper that applies a natural page-curl open animation.
 // Uses CSS-only animation for reliability; gracefully respects reduced motion.
 export default function PageCurl({ open, children, mode = 'corner', durationMs = 1500, easing = 'quint', curlStrength = 1.0, radiusFactor = 1.3, radiusMax = 220, scrollOnly = false, slices, theme = 'parchment', rollEdgeHeight = 28, lowSpecAuto = true, textureStrength = 1 }: PageCurlProps) {
-  const key = useMemo(() => Date.now() + Math.random(), [open]);
   const pageRef = useRef<HTMLDivElement | null>(null);
   const faceRef = useRef<HTMLDivElement | null>(null);
   const slicesWrapRef = useRef<HTMLDivElement | null>(null);
@@ -81,7 +80,7 @@ export default function PageCurl({ open, children, mode = 'corner', durationMs =
         if (sh) sh.style.opacity = open ? '0' : '1';
       } catch {}
     }
-  }, [open]);
+  }, [open, mode]);
 
   useEffect(() => {
     // Capture a static HTML snapshot of the content for slice rendering (visual only, no events)
@@ -280,7 +279,7 @@ export default function PageCurl({ open, children, mode = 'corner', durationMs =
     }
     animRef.current = requestAnimationFrame(step);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); startRef.current = 0; animRef.current = null; };
-  }, [open, mode, snapshotHtml]);
+  }, [open, mode, snapshotHtml, durationMs, easing, curlStrength, radiusFactor, radiusMax, scrollOnly, rollEdgeHeight]);
 
   return (
     <div className={`curl-wrap scroll-theme-${theme}`} style={{
@@ -333,4 +332,6 @@ export default function PageCurl({ open, children, mode = 'corner', durationMs =
     </div>
   );
 }
+
+
 

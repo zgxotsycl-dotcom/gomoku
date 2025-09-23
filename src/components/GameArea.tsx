@@ -2,18 +2,23 @@
 
 import { GameBoard } from './GameBoard';
 import { GameControls } from './GameControls';
-import type { Game as ReplayGame } from '../types';
+import type { Game as ReplayGame, Player } from '../types';
+
+interface Swap2Override {
+    active: boolean;
+    board: (Player | null)[][];
+    onClick: (row: number, col: number) => void;
+}
 
 interface GameAreaProps {
     state: any;
     dispatch: (action: any) => void;
     replayGame: ReplayGame | null;
+    swap2Override?: Swap2Override | null;
 }
 
-const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
+const GameArea = ({ state, dispatch, replayGame, swap2Override }: GameAreaProps) => {
     const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
-        // Prevent interaction while color selection is active ONLY in Normal difficulty, or when not playing
-        if ((state.difficulty === 'normal' && state.showColorSelect) || state.gameState !== 'playing') return;
         const rect = event.currentTarget.getBoundingClientRect();
         const style = window.getComputedStyle(event.currentTarget);
         const paddingLeft = parseFloat(style.paddingLeft);
@@ -23,22 +28,27 @@ const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
         const x = event.clientX - rect.left - paddingLeft;
         const y = event.clientY - rect.top - paddingTop;
         if (x < 0 || x > gridWidth || y < 0 || y > gridHeight) return;
-        const size = state.board?.length || 15;
+        const size = (swap2Override?.board?.length) || state.board?.length || 15;
         const row = Math.round((y / gridHeight) * (size - 1));
         const col = Math.round((x / gridWidth) * (size - 1));
         if (row < 0 || row >= size || col < 0 || col >= size) return;
 
+        if (swap2Override?.active) {
+            swap2Override.onClick(row, col);
+            return;
+        }
+
+        if ((state.difficulty === 'normal' && state.showColorSelect) || state.gameState !== 'playing') return;
+
         if (state.isWhatIfMode) {
             dispatch({ type: 'PLACE_WHAT_IF_STONE', payload: { row, col } });
-        } else if (state.gameState !== 'replay') { // Prevent placing stones during replay
+        } else if (state.gameState !== 'replay') {
             dispatch({ type: 'PLACE_STONE', payload: { row, col } });
         }
     };
 
     const getLastMove = () => {
-        if (state.isWhatIfMode) {
-            return state.whatIfLastMove;
-        }
+        if (state.isWhatIfMode) return state.whatIfLastMove;
         if (state.gameState === 'replay') {
             if (state.replayMoveIndex === 0) return null;
             return state.history[state.replayMoveIndex - 1];
@@ -47,10 +57,13 @@ const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
         return state.history[state.history.length - 1];
     };
 
+    const boardForRender = swap2Override?.board ?? (state.isWhatIfMode ? state.whatIfBoard : state.board);
+    const winningLine = state.isWhatIfMode ? state.whatIfWinningLine : state.winningLine;
+
     return (
         <>
             <GameBoard
-                board={state.isWhatIfMode ? state.whatIfBoard : state.board}
+                board={boardForRender}
                 lastMove={getLastMove()}
                 isSpectator={state.isSpectator}
                 handleBoardClick={handleBoardClick}
@@ -59,7 +72,7 @@ const GameArea = ({ state, dispatch, replayGame }: GameAreaProps) => {
                 aiPlayer={state.aiPlayer}
                 gameState={state.gameState}
                 whatIf={{ isMode: state.isWhatIfMode }}
-                winningLine={state.isWhatIfMode ? state.whatIfWinningLine : state.winningLine}
+                winningLine={winningLine}
                 forbiddenMoves={state.forbiddenMoves}
                 isWinningShake={state.isWinningShake}
                 startAnimKey={state.startAnimKey}
