@@ -75,6 +75,259 @@ const AdBanner = () => {
   return null;
 };
 
+const PvaLaunchAnimation = () => (
+  <div className="launch-scene">
+    <div className="launch-sphere earth" />
+    <div className="launch-sphere aurora" />
+    <div className="launch-trail">
+      <span className="trail trail-1" />
+      <span className="trail trail-2" />
+      <span className="trail trail-3" />
+    </div>
+    <div className="launch-rocket">
+      <div className="rocket-body">
+        <div className="rocket-window" />
+        <div className="rocket-ridge" />
+      </div>
+      <div className="rocket-fin fin-left" />
+      <div className="rocket-fin fin-right" />
+      <div className="rocket-flame">
+        <span className="flame-core" />
+        <span className="flame-glow" />
+      </div>
+    </div>
+    <div className="launch-clouds">
+      <span className="puff puff-1" />
+      <span className="puff puff-2" />
+      <span className="puff puff-3" />
+    </div>
+    <div className="launch-stars starfield-1" />
+    <div className="launch-stars starfield-2" />
+    <style jsx>{`
+      .launch-scene {
+        position: relative;
+        width: 18rem;
+        max-width: 80vw;
+        aspect-ratio: 1;
+        overflow: hidden;
+      }
+      .launch-sphere {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(0px);
+        transform-origin: center;
+      }
+      .earth {
+        bottom: -35%;
+        left: 50%;
+        width: 150%;
+        height: 150%;
+        transform: translateX(-50%);
+        background: radial-gradient(circle at 35% 30%, rgba(80, 165, 255, 0.85), rgba(12, 52, 129, 0.95) 45%, rgba(4, 16, 45, 1) 70%);
+        box-shadow: 0 -30px 120px rgba(0, 120, 255, 0.35);
+      }
+      .aurora {
+        bottom: -10%;
+        left: 50%;
+        width: 110%;
+        height: 110%;
+        transform: translateX(-50%);
+        background: radial-gradient(circle at 50% 80%, rgba(74, 222, 128, 0.55), transparent 65%);
+        animation: auroraPulse 6s ease-in-out infinite;
+      }
+      .launch-trail {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .trail {
+        position: absolute;
+        bottom: 12%;
+        left: 52%;
+        width: 8rem;
+        height: 0.75rem;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(80, 200, 255, 0));
+        transform-origin: left center;
+        opacity: 0;
+        animation: trailStreak 2.8s ease-in-out infinite;
+      }
+      .trail-1 {
+        transform: rotate(-6deg) scaleX(0.8);
+        animation-delay: 0.1s;
+      }
+      .trail-2 {
+        transform: rotate(-12deg) scaleX(1);
+        animation-delay: 0.25s;
+      }
+      .trail-3 {
+        transform: rotate(-18deg) scaleX(0.9);
+        animation-delay: 0.4s;
+      }
+      .launch-rocket {
+        position: absolute;
+        bottom: 16%;
+        left: 46%;
+        width: 3.6rem;
+        height: 8.25rem;
+        transform-origin: center;
+        animation: rocketFlight 4.2s cubic-bezier(0.55, 0.03, 0.21, 0.99) infinite;
+      }
+      .rocket-body {
+        position: absolute;
+        inset: 0;
+        border-radius: 1.8rem 1.8rem 0.9rem 0.9rem;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(210, 224, 255, 0.9));
+        box-shadow: 0 0 25px rgba(120, 200, 255, 0.6);
+      }
+      .rocket-window {
+        position: absolute;
+        top: 28%;
+        left: 50%;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        transform: translateX(-50%);
+        background: radial-gradient(circle at 30% 35%, rgba(255, 255, 255, 0.9), rgba(81, 111, 255, 0.85));
+        box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.7);
+      }
+      .rocket-ridge {
+        position: absolute;
+        bottom: 38%;
+        left: 50%;
+        width: 70%;
+        height: 0.35rem;
+        border-radius: 999px;
+        transform: translateX(-50%);
+        background: linear-gradient(90deg, rgba(148, 163, 184, 0.9), rgba(226, 232, 240, 0.9));
+      }
+      .rocket-fin {
+        position: absolute;
+        bottom: 0.6rem;
+        width: 1.6rem;
+        height: 2.6rem;
+        background: linear-gradient(180deg, rgba(125, 211, 252, 0.9), rgba(59, 130, 246, 0.8));
+        border-radius: 0 0 1.4rem 1.4rem;
+        box-shadow: 0 8px 20px rgba(56, 189, 248, 0.4);
+      }
+      .fin-left {
+        left: -0.85rem;
+        transform: rotate(-18deg);
+      }
+      .fin-right {
+        right: -0.85rem;
+        transform: rotate(18deg);
+      }
+      .rocket-flame {
+        position: absolute;
+        bottom: -1.9rem;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .flame-core {
+        display: block;
+        width: 0.9rem;
+        height: 2.4rem;
+        border-radius: 999px;
+        background: radial-gradient(circle at 50% 15%, rgba(255, 255, 255, 0.95), rgba(251, 191, 36, 0.92));
+        animation: flameFlicker 0.75s ease-in-out infinite;
+      }
+      .flame-glow {
+        position: absolute;
+        width: 2.8rem;
+        height: 3.2rem;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(253, 224, 71, 0.4), rgba(226, 95, 26, 0));
+        animation: flameGlow 0.9s ease-in-out infinite;
+      }
+      .launch-clouds {
+        position: absolute;
+        bottom: 6%;
+        left: 50%;
+        width: 120%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: space-between;
+      }
+      .puff {
+        display: block;
+        width: 2.8rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.8), rgba(148, 163, 184, 0.25));
+        animation: puffDrift 3.6s ease-in-out infinite;
+      }
+      .puff-1 { animation-delay: 0s; }
+      .puff-2 { animation-delay: 0.4s; }
+      .puff-3 { animation-delay: 0.8s; }
+      .launch-stars {
+        position: absolute;
+        inset: -20%;
+        background-size: 120px 120px;
+        opacity: 0.6;
+        animation: starDrift linear infinite;
+      }
+      .starfield-1 {
+        background-image: radial-gradient(circle 1px, rgba(255, 255, 255, 0.9) 0, transparent 45%);
+        animation-duration: 38s;
+      }
+      .starfield-2 {
+        background-image: radial-gradient(circle 2px, rgba(96, 165, 250, 0.6) 0, transparent 40%);
+        animation-duration: 26s;
+        animation-direction: reverse;
+      }
+      @keyframes rocketFlight {
+        0% {
+          transform: translate(-55%, 5%) rotate(-8deg) scale(0.96);
+        }
+        38% {
+          transform: translate(10%, -50%) rotate(-2deg) scale(1.02);
+        }
+        55% {
+          transform: translate(25%, -70%) rotate(5deg) scale(1.05);
+        }
+        72% {
+          transform: translate(40%, -92%) rotate(12deg) scale(1.12);
+        }
+        100% {
+          transform: translate(65%, -125%) rotate(18deg) scale(1.2);
+        }
+      }
+      @keyframes auroraPulse {
+        0%, 100% { opacity: 0.35; transform: translateX(-50%) scale(1); }
+        50% { opacity: 0.6; transform: translateX(-50%) scale(1.08); }
+      }
+      @keyframes trailStreak {
+        0% { opacity: 0; transform: rotate(-4deg) scaleX(0.2); }
+        20% { opacity: 0.75; }
+        60% { opacity: 0.15; }
+        100% { opacity: 0; transform: rotate(-20deg) scaleX(1.1); }
+      }
+      @keyframes flameFlicker {
+        0%, 100% { transform: scaleY(1) skewX(0deg); }
+        50% { transform: scaleY(1.2) skewX(-5deg); }
+      }
+      @keyframes flameGlow {
+        0%, 100% { opacity: 0.35; transform: scale(1); }
+        50% { opacity: 0.65; transform: scale(1.08); }
+      }
+      @keyframes puffDrift {
+        0% { transform: translateY(0) scale(1); opacity: 0.85; }
+        50% { transform: translateY(-12%) scale(1.05); opacity: 0.65; }
+        100% { transform: translateY(-22%) scale(1.1); opacity: 0.4; }
+      }
+      @keyframes starDrift {
+        from { transform: translateY(0) rotate(0deg); }
+        to { transform: translateY(-180px) rotate(3deg); }
+      }
+    `}</style>
+  </div>
+);
+
+
 /* ------------------------------------ 페이지 ------------------------------------ */
 export default function Home() {
   const { t } = useTranslation();
@@ -283,7 +536,7 @@ export default function Home() {
         <main className="flex flex-col items-center justify-center p-10 pt-20">
           {!selectedGameMode && <AccountInfo onOpenSettings={() => setSettingsOpen(true)} onOpenBenefits={handleBecomeSupporter} />}
 
-          {room && !showRoomCodeModal ? (
+          {selectedGameMode === 'pvo' && room && !showRoomCodeModal ? (
             <Board initialGameMode={'pvo'} onExit={handleBackToMenu} spectateRoomId={room} />
           ) : selectedGameMode === 'pvo' ? (
             <OnlineMultiplayerMenu
@@ -417,27 +670,37 @@ export default function Home() {
 
       {/* PvA 로딩 화면: 배경 미리 로딩 */}
       {pvaLoading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
-          <div className="flex flex-col items-center gap-4">
-            {/* 재미있는 로딩 애니메이션: 바둑돌 공전 */}
-            <div className="relative w-[120px] h-[120px]">
-              <div className="absolute inset-0 animate-[orbit_2.8s_linear_infinite]">
-                <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-0 w-[22px] h-[22px] rounded-full bg-black shadow-xl" />
-                <div className="absolute left-1/2 -translate-x-1/2 translate-y-1/2 bottom-0 w-[22px] h-[22px] rounded-full bg-white shadow-xl border border-gray-300" />
-              </div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-white/30"></div>
-              </div>
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black px-6">
+          <PvaLaunchAnimation />
+          <div className="mt-8 flex flex-col items-center gap-3 text-center">
+            <div className="text-white text-2xl font-semibold tracking-wide">{t('PvaLoadingTitle')}</div>
+            <p className="text-sky-200/80 text-sm leading-relaxed max-w-xs">AI 대전을 위한 전략 궤도와 추론 매개변수를 정렬하고 있어요.
+            </p>
+            <div className="launch-progress">
+              <span className="launch-progress-meter" />
             </div>
-            <div className="flex items-center justify-center space-x-2">
-              <div className="w-2 h-2 bg-white/40 rounded-full animate-pulse"></div>
-              <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse [animation-delay:0.15s]"></div>
-              <div className="w-2 h-2 bg-white/80 rounded-full animate-pulse [animation-delay:0.3s]"></div>
-            </div>
-            <div className="text-white text-xl font-semibold">{t('PvaLoadingTitle')}</div>
           </div>
           <style jsx>{`
-            @keyframes orbit { to { transform: rotate(360deg); } }
+            .launch-progress {
+              position: relative;
+              width: 11rem;
+              height: 0.35rem;
+              border-radius: 999px;
+              overflow: hidden;
+              background: linear-gradient(90deg, rgba(30, 64, 175, 0.4), rgba(148, 163, 184, 0.12));
+              box-shadow: 0 0 24px rgba(59, 130, 246, 0.35);
+            }
+            .launch-progress-meter {
+              position: absolute;
+              inset: 0;
+              background: linear-gradient(90deg, rgba(15, 118, 110, 0.15), rgba(125, 211, 252, 0.85), rgba(14, 165, 233, 0.2));
+              animation: launchSweep 2.4s ease-in-out infinite;
+            }
+            @keyframes launchSweep {
+              0% { transform: translateX(-80%); }
+              50% { transform: translateX(-10%); }
+              100% { transform: translateX(80%); }
+            }
           `}</style>
         </div>
       )}
@@ -459,22 +722,23 @@ export default function Home() {
       )}
 
       {/* PvA 난이도 선택 모달 */}
-      {showPvaDifficulty && (
-        <DifficultySelect
-          visible={true}
-          onSelect={(d) => {
-            try { sessionStorage.setItem('pva_difficulty', d); } catch {}
-            setShowPvaDifficulty(false);
-            // 난이도 선택 후 1.5초 로딩 화면으로 이동하며 PVA 배경 미리 로딩
-            setPvaLoading(true);
-            setSelectedGameMode('pva');
-            if (pvaTimerRef.current) { clearTimeout(pvaTimerRef.current); }
-            pvaTimerRef.current = window.setTimeout(() => {
-              setPvaLoading(false);
-            }, 1500);
-          }}
-        />
-      )}
+      <DifficultySelect
+        visible={showPvaDifficulty}
+        onDismiss={() => setShowPvaDifficulty(false)}
+        onSelect={(d) => {
+          try { sessionStorage.setItem('pva_difficulty', d); } catch {}
+          setShowPvaDifficulty(false);
+          setRoom(null);
+          setShowRoomCodeModal(false);
+          // 난이도 선택 후 1.5초 로딩 화면으로 이동하며 PVA 배경 미리 로딩
+          setPvaLoading(true);
+          setSelectedGameMode('pva');
+          if (pvaTimerRef.current) { clearTimeout(pvaTimerRef.current); }
+          pvaTimerRef.current = window.setTimeout(() => {
+            setPvaLoading(false);
+          }, 1500);
+        }}
+      />
 
       {/* 로그인 모달 */}
       {showLoginModal && (

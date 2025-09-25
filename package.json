@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings=0 --ext .js,.jsx,.ts,.tsx .",
-    "test:curl": "node scripts/test_pagecurl_geometry.js"
+    "test:curl": "node scripts/test_pagecurl_geometry.js",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "@react-three/drei": "^9.99.0",
@@ -47,7 +49,13 @@
     "eslint-config-next": "14.0.4",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^1.6.1",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/jest-dom": "^6.4.3",
+    "@testing-library/user-event": "^14.5.2",
+    "jsdom": "^24.0.0",
+    "@vitejs/plugin-react": "^4.2.1"
   },
   "main": "next.config.js",
   "keywords": [],

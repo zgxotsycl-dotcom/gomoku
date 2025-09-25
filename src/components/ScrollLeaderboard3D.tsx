@@ -8,6 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient"; // 별칭 미사용이면 ../../lib/supabaseClient 로 바꿔주세요.
 
 type RegionMode = "global" | "country";
@@ -539,7 +540,15 @@ export default function InlineLeaderboardPanel({
                         <span className="avatar-fb">
                           {(p.username || "A").slice(0, 1).toUpperCase()}
                         </span>
-                        {avatarUrls?.[p.id] && <img src={avatarUrls[p.id]} alt="" />}
+                        {avatarUrls?.[p.id] && (
+                          <Image
+                            src={avatarUrls[p.id]}
+                            alt=""
+                            fill
+                            sizes="40px"
+                            className="avatar-img"
+                          />
+                        )}
                       </div>
                       <div className="names">
                         <div
@@ -822,7 +831,7 @@ export default function InlineLeaderboardPanel({
           font-weight: 900;
           color: rgba(255, 255, 255, 0.85);
         }
-        .avatar img {
+        .avatar :global(.avatar-img) {
           position: absolute;
           inset: 0;
           width: 100%;

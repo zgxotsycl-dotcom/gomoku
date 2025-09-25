@@ -614,7 +614,11 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                 }
 
             } catch (error) {
-                console.error("Error fetching AI move:", error);
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    console.warn('AI move request aborted; falling back locally.');
+                } else {
+                    console.error("Error fetching AI move:", error);
+                }
                 // Fallback: choose a smarter local heuristic move to avoid flag-fall
                 try {
                     const size = state.board.length || 15;

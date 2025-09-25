@@ -53,6 +53,13 @@ interface Swap2Option3State {
   stage: 'white' | 'black';
 }
 
+interface Swap2SecondDecision {
+  board: BoardMatrix;
+  toMove: Player;
+  aiColor: Player;
+  pendingWhiteExtra: boolean;
+}
+
 interface ApplyOpeningDetail {
   board: BoardMatrix;
   toMove?: Player;
@@ -159,6 +166,8 @@ const fetchWithTimeout = async (input: RequestInfo, init: RequestInit = {}, time
   }
 };
 
+const SWAP2_SECOND_TIMEOUT_MS = 2500;
+
 /* ===================== Component ===================== */
 const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = null, loadingOverlayActive = false }: BoardProps) => {
   const { t } = useTranslation();
@@ -168,7 +177,12 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   const [swap2PreviewBoard, setSwap2PreviewBoard] = useState<BoardMatrix | null>(null);
   const [swap2Option3State, setSwap2Option3State] = useState<Swap2Option3State | null>(null);
   const [swap2Processing, setSwap2Processing] = useState(false);
+  const [swap2SecondReady, setSwap2SecondReady] = useState(false);
   const swap2ProposalRef = useRef<Swap2Proposal | null>(null);
+  const swap2ProposalPromiseRef = useRef<Promise<Swap2Proposal> | null>(null);
+  const swap2SecondDecisionRef = useRef<Swap2SecondDecision | null>(null);
+  const swap2SecondPromiseRef = useRef<Promise<Swap2SecondDecision> | null>(null);
+  const swap2PrefetchErrorNotifiedRef = useRef(false);
 
   const isPVA = state.gameMode === 'pva';
   const isOpeningWaiting = state.history.length === 0 && state.gameState === 'waiting';
@@ -225,7 +239,12 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       setSwap2PreviewBoard(null);
       setSwap2Option3State(null);
       setSwap2Processing(false);
+      setSwap2SecondReady(false);
       swap2ProposalRef.current = null;
+      swap2ProposalPromiseRef.current = null;
+      swap2SecondDecisionRef.current = null;
+      swap2SecondPromiseRef.current = null;
+      swap2PrefetchErrorNotifiedRef.current = false;
     },
     [dispatch]
   );
@@ -233,46 +252,137 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   /** 서버 제안 요청(캐시/폴백) */
   const ensureSwap2Proposal = useCallback(async (): Promise<Swap2Proposal> => {
     if (swap2ProposalRef.current) return swap2ProposalRef.current;
+    if (swap2ProposalPromiseRef.current) return swap2ProposalPromiseRef.current;
+
     const size = state.board?.length || 15;
 
-    try {
-      const respProp = await fetchWithTimeout(
-        '/api/swap2/propose',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ board: state.board }),
-        },
-        6000
-      );
-      if (!respProp.ok) throw new Error(`Swap2 propose failed: ${respProp.status}`);
+    const pending = (async () => {
+      try {
+        const respProp = await fetchWithTimeout(
+          '/api/swap2/propose',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ board: state.board }),
+          },
+          6000
+        );
+        if (!respProp.ok) throw new Error(`Swap2 propose failed: ${respProp.status}`);
 
-      const prop = await respProp.json();
-      const parsed = toBoardMatrix(prop?.board);
-      if (!parsed) throw new Error('Swap2 propose returned invalid board');
+        const prop = await respProp.json();
+        const parsed = toBoardMatrix(prop?.board);
+        if (!parsed) throw new Error('Swap2 propose returned invalid board');
 
-      const toMove: Player = prop?.toMove === 'black' || prop?.toMove === 'white' ? prop.toMove : 'white';
-      const proposal: Swap2Proposal = {
-        board: cloneBoard(parsed),
-        toMove,
-        pendingWhiteExtra: shouldRequestExtraWhite(prop),
-      };
-      swap2ProposalRef.current = proposal;
-      setSwap2PreviewBoard(cloneBoard(proposal.board));
-      return proposal;
-    } catch (err) {
-      if (!isAbortError(err)) console.error('Swap2 propose failed, using fallback:', err);
-      const local = createFallbackSwap2(size);
-      const fallbackProposal: Swap2Proposal = {
-        board: cloneBoard(local.board),
-        toMove: local.toMove,
-        pendingWhiteExtra: false,
-      };
-      swap2ProposalRef.current = fallbackProposal;
-      setSwap2PreviewBoard(cloneBoard(fallbackProposal.board));
-      return fallbackProposal;
-    }
+        const toMove: Player = prop?.toMove === 'black' || prop?.toMove === 'white' ? prop.toMove : 'white';
+        const proposal: Swap2Proposal = {
+          board: cloneBoard(parsed),
+          toMove,
+          pendingWhiteExtra: shouldRequestExtraWhite(prop),
+        };
+        swap2ProposalRef.current = proposal;
+        setSwap2PreviewBoard(cloneBoard(proposal.board));
+        return proposal;
+      } catch (err) {
+        if (!isAbortError(err) && !swap2PrefetchErrorNotifiedRef.current) {
+          console.error('Swap2 propose failed, using fallback:', err);
+          swap2PrefetchErrorNotifiedRef.current = true;
+        }
+        const local = createFallbackSwap2(size);
+        const fallbackProposal: Swap2Proposal = {
+          board: cloneBoard(local.board),
+          toMove: local.toMove,
+          pendingWhiteExtra: false,
+        };
+        swap2ProposalRef.current = fallbackProposal;
+        setSwap2PreviewBoard(cloneBoard(fallbackProposal.board));
+        return fallbackProposal;
+      } finally {
+        swap2ProposalPromiseRef.current = null;
+      }
+    })();
+
+    swap2ProposalPromiseRef.current = pending;
+    return pending;
   }, [state.board]);
+
+  const ensureSwap2SecondDecision = useCallback(async (): Promise<Swap2SecondDecision | null> => {
+    if (swap2SecondDecisionRef.current) return swap2SecondDecisionRef.current;
+    if (swap2SecondPromiseRef.current) return swap2SecondPromiseRef.current;
+
+    const pending = (async () => {
+      const proposal = await ensureSwap2Proposal();
+      const baseDecision: Swap2SecondDecision = {
+        board: cloneBoard(proposal.board),
+        toMove: proposal.toMove,
+        aiColor: 'white',
+        pendingWhiteExtra: proposal.pendingWhiteExtra,
+      };
+
+      try {
+        const respSecond = await fetchWithTimeout(
+          '/api/swap2/second',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ board: proposal.board }),
+          },
+          SWAP2_SECOND_TIMEOUT_MS
+        );
+
+        if (respSecond.ok) {
+          const decision = await respSecond.json();
+          const nextBoard = toBoardMatrix(decision?.board);
+          const resolvedBoard = nextBoard ? cloneBoard(nextBoard) : cloneBoard(proposal.board);
+
+          let toMove: Player =
+            decision?.toMove === 'black' || decision?.toMove === 'white' ? decision.toMove : proposal.toMove;
+          let aiColor: Player = 'white';
+
+          const swapColorsNormalized =
+            typeof decision?.swapColors === 'boolean'
+              ? decision.swapColors
+              : decision?.swapColors === 'true' || decision?.swapColors === 1;
+
+          if (swapColorsNormalized) {
+            aiColor = 'black';
+            if (!(decision?.toMove === 'black' || decision?.toMove === 'white')) {
+              toMove = 'black';
+            }
+          } else {
+            aiColor = 'white';
+          }
+
+          const pendingWhiteExtra = proposal.pendingWhiteExtra || shouldRequestExtraWhite(decision);
+
+          const normalized: Swap2SecondDecision = {
+            board: resolvedBoard,
+            toMove,
+            aiColor,
+            pendingWhiteExtra,
+          };
+
+          swap2SecondDecisionRef.current = normalized;
+          return normalized;
+        }
+
+        console.warn('Swap2 second returned non-OK status', respSecond.status);
+        swap2SecondDecisionRef.current = baseDecision;
+        return baseDecision;
+      } catch (err) {
+        if (!isAbortError(err) && !swap2PrefetchErrorNotifiedRef.current) {
+          console.warn('Swap2 second step failed; continuing with proposal board', err);
+          swap2PrefetchErrorNotifiedRef.current = true;
+        }
+        swap2SecondDecisionRef.current = baseDecision;
+        return baseDecision;
+      } finally {
+        swap2SecondPromiseRef.current = null;
+      }
+    })();
+
+    swap2SecondPromiseRef.current = pending;
+    return pending;
+  }, [ensureSwap2Proposal]);
 
   /** 색 선택 처리 (수동/자동) */
   const onChooseColor = useCallback(
@@ -295,74 +405,33 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
             swap2ProposalRef.current = null;
           } else {
             setSwap2Decision({ board: boardClone, toMove: local.toMove });
+            setSwap2PreviewBoard(boardClone);
             setSwap2Option3State(null);
           }
         }
       };
 
-      // 흑 선택: 서버에 second 결정도 요청
+      // 흑 선택: 프리페치된 second 결정을 우선 적용
       if (color === 'black') {
         setSwap2Processing(true);
         try {
-          const proposal = await ensureSwap2Proposal();
-          let proposalBoard = cloneBoard(proposal.board);
-          let toMove = proposal.toMove;
-          let aiColor: Player = 'white';
-          let pendingWhiteExtra = proposal.pendingWhiteExtra;
-
-          try {
-            const respSecond = await fetchWithTimeout(
-              '/api/swap2/second',
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ board: proposal.board }),
-              },
-              4000
+          const decision = await ensureSwap2SecondDecision();
+          if (decision) {
+            finalizeSwap2Opening(
+              cloneBoard(decision.board),
+              decision.aiColor,
+              decision.toMove,
+              decision.pendingWhiteExtra ? { pendingWhiteExtra: true } : undefined
             );
-
-            if (respSecond.ok) {
-              const decision = await respSecond.json();
-
-              const nextBoard = toBoardMatrix(decision?.board);
-              if (nextBoard) proposalBoard = cloneBoard(nextBoard);
-
-              if (decision?.toMove === 'black' || decision?.toMove === 'white') {
-                toMove = decision.toMove;
-              }
-
-              // swapColors 명시(불리언/문자/숫자 수용)
-              const swapColorsNormalized =
-                typeof decision?.swapColors === 'boolean'
-                  ? decision.swapColors
-                  : decision?.swapColors === 'true' || decision?.swapColors === 1;
-
-              if (swapColorsNormalized) {
-                aiColor = 'black';
-                if (!(decision?.toMove === 'black' || decision?.toMove === 'white')) {
-                  toMove = 'black';
-                }
-              } else {
-                aiColor = 'white';
-              }
-
-              if (shouldRequestExtraWhite(decision)) {
-                pendingWhiteExtra = true;
-              }
-            } else {
-              console.warn('Swap2 second returned non-OK status', respSecond.status);
-            }
-          } catch (err) {
-            if (!isAbortError(err)) {
-              console.warn('Swap2 second step failed; continuing with proposal board', err);
-            }
+            return;
           }
 
+          const proposal = await ensureSwap2Proposal();
           finalizeSwap2Opening(
-            proposalBoard,
-            aiColor,
-            toMove,
-            pendingWhiteExtra ? { pendingWhiteExtra: true } : undefined
+            cloneBoard(proposal.board),
+            'white',
+            proposal.toMove,
+            proposal.pendingWhiteExtra ? { pendingWhiteExtra: true } : undefined
           );
           return;
         } catch (err) {
@@ -379,10 +448,11 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       try {
         const proposal = await ensureSwap2Proposal();
         const baseBoard = cloneBoard(proposal.board);
+        const pendingExtra = proposal.pendingWhiteExtra ? { pendingWhiteExtra: true } : undefined;
         dispatch({ type: 'HIDE_COLOR_SELECT' });
 
         if (auto) {
-          finalizeSwap2Opening(baseBoard, 'black', proposal.toMove);
+          finalizeSwap2Opening(baseBoard, 'black', proposal.toMove, pendingExtra);
           swap2ProposalRef.current = null;
         } else {
           setSwap2Decision({ board: baseBoard, toMove: proposal.toMove });
@@ -397,7 +467,14 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         setSwap2Processing(false);
       }
     },
-    [swap2Processing, state.board, ensureSwap2Proposal, finalizeSwap2Opening, dispatch]
+    [
+      swap2Processing,
+      state.board,
+      ensureSwap2Proposal,
+      ensureSwap2SecondDecision,
+      finalizeSwap2Opening,
+      dispatch,
+    ]
   );
 
   const handleSwap2StayWhite = useCallback(() => {
@@ -416,6 +493,35 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     setSwap2Option3State({ board: boardCopy, stage: 'white' });
     setSwap2PreviewBoard(boardCopy);
   }, [swap2Decision]);
+
+  const handleColorSelectOption3 = useCallback(async () => {
+    if (swap2Processing) return;
+    setSwap2Processing(true);
+    const size = state.board?.length || 15;
+    try {
+      const proposal = await ensureSwap2Proposal();
+      const boardCopy = cloneBoard(proposal.board);
+      dispatch({ type: 'HIDE_COLOR_SELECT' });
+      setSwap2Decision({ board: boardCopy, toMove: proposal.toMove });
+      setSwap2Option3State({ board: boardCopy, stage: 'white' });
+      setSwap2PreviewBoard(boardCopy);
+    } catch (err) {
+      if (!isAbortError(err)) console.error('Swap2 option3 setup failed:', err);
+      const local = createFallbackSwap2(size);
+      const fallbackBoard = cloneBoard(local.board);
+      dispatch({ type: 'HIDE_COLOR_SELECT' });
+      setSwap2Decision({ board: fallbackBoard, toMove: local.toMove });
+      setSwap2Option3State({ board: fallbackBoard, stage: 'white' });
+      setSwap2PreviewBoard(fallbackBoard);
+    } finally {
+      setSwap2Processing(false);
+    }
+  }, [
+    swap2Processing,
+    ensureSwap2Proposal,
+    dispatch,
+    state.board?.length,
+  ]);
 
   const finalizeOption3 = useCallback(
     async (board: BoardMatrix) => {
@@ -479,6 +585,20 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   /* ========== Lifecycle: Color select 활성화/초기화 & 프리페치 ========== */
   const colorSelectActiveRef = useRef(false);
 
+  // 새로운 대기 상태로 진입하면 Swap2 프리페치 캐시를 초기화
+  useEffect(() => {
+    if (!isPVA) return;
+    if (state.difficulty !== 'normal') return;
+    if (!isOpeningWaiting) return;
+
+    setSwap2SecondReady(false);
+    swap2ProposalRef.current = null;
+    swap2ProposalPromiseRef.current = null;
+    swap2SecondDecisionRef.current = null;
+    swap2SecondPromiseRef.current = null;
+    swap2PrefetchErrorNotifiedRef.current = false;
+  }, [isPVA, state.difficulty, isOpeningWaiting]);
+
   // ColorSelect가 처음 나타날 때 내부 상태 초기화
   useEffect(() => {
     const active = isPVA && isOpeningWaiting && state.showColorSelect && !loadingOverlayActive;
@@ -491,7 +611,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     colorSelectActiveRef.current = active;
   }, [isPVA, isOpeningWaiting, state.showColorSelect, loadingOverlayActive]);
 
-  // ColorSelect가 열리면 서버 제안 미리 확보 (중복 방지 가드 포함)
+  // ColorSelect가 열리면 프리페치된 제안을 미리 반영
   useEffect(() => {
     const active = isPVA && isOpeningWaiting && state.showColorSelect && !loadingOverlayActive;
     if (!active) return;
@@ -501,28 +621,48 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       return;
     }
 
-    let cancelled = false;
-    const shouldToggle = !swap2Processing;
-    if (shouldToggle) setSwap2Processing(true);
-
-    (async () => {
-      try {
-        await ensureSwap2Proposal();
-      } finally {
-        if (!cancelled && shouldToggle) setSwap2Processing(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    void ensureSwap2Proposal();
   }, [
     isPVA,
     isOpeningWaiting,
     state.showColorSelect,
     loadingOverlayActive,
-    swap2Processing,
     ensureSwap2Proposal,
+  ]);
+
+  // PvA 대기 시간 동안 Swap2 전 과정을 미리 계산해 대기시간을 제거
+  useEffect(() => {
+    if (!isPVA) return;
+    if (state.difficulty !== 'normal') return;
+    if (!isOpeningWaiting) return;
+    if (swap2SecondReady) return;
+
+    let active = true;
+
+    (async () => {
+      try {
+        await ensureSwap2Proposal();
+        if (active) setSwap2SecondReady(true);
+        await ensureSwap2SecondDecision();
+      } catch (err) {
+        if (!isAbortError(err) && !swap2PrefetchErrorNotifiedRef.current) {
+          console.warn('Swap2 prefetch failed; fallback flows will be used', err);
+          swap2PrefetchErrorNotifiedRef.current = true;
+        }
+        if (active) setSwap2SecondReady(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    isPVA,
+    state.difficulty,
+    isOpeningWaiting,
+    swap2SecondReady,
+    ensureSwap2Proposal,
+    ensureSwap2SecondDecision,
   ]);
 
   /* ========== Custom event: apply-opening (replay/실험용) ========== */
@@ -555,6 +695,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (state.difficulty !== 'normal') return;
     if (!isOpeningWaiting) return;
     if (loadingOverlayActive) return;
+    if (!swap2SecondReady) return;
     if (state.rematchSwap2Pending) return;
     if (state.showColorSelect) return;
     if (swap2Decision || swap2Option3State || swap2Processing) return;
@@ -564,6 +705,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     state.difficulty,
     isOpeningWaiting,
     loadingOverlayActive,
+    swap2SecondReady,
     state.rematchSwap2Pending,
     state.showColorSelect,
     swap2Decision,
@@ -579,6 +721,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (!state.rematchSwap2Pending) return;
     if (!isOpeningWaiting) return;
     if (loadingOverlayActive) return;
+    if (!swap2SecondReady) return;
     const autoColor: PlayerChoice = currentHumanColor;
     void onChooseColor(autoColor, true);
   }, [
@@ -587,6 +730,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     state.rematchSwap2Pending,
     isOpeningWaiting,
     loadingOverlayActive,
+    swap2SecondReady,
     state.aiPlayer,
     state.playerRole,
     currentHumanColor,
@@ -603,11 +747,15 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
           state.difficulty === 'normal' &&
           state.showColorSelect &&
           isOpeningWaiting &&
-          !loadingOverlayActive
+          !loadingOverlayActive &&
+          swap2SecondReady
         }
         onSelect={(c) => {
           // 안전하게 비동기 처리
           void onChooseColor(c);
+        }}
+        onRequestOption3={() => {
+          void handleColorSelectOption3();
         }}
         timeoutMs={7000}
         onTimeout={() => {

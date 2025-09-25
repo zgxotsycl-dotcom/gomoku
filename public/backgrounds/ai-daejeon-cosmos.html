@@ -48,7 +48,7 @@ const CFG = {
   STAR_PARA       : 10,
   CENTER_DEPTH_STRENGTH: 0.22,
 
-  /* Seam‑Free 교차 페이드 */
+  /* Seam‑Free 교차 페이드(별은 하드 래핑으로 처리) */
   TILE_MARGIN: 28,
 
   /* 노이즈(밴딩 억제) */
@@ -118,6 +118,8 @@ function blurredBlob(ctx, cx,cy, r, color){
   g.addColorStop(0,color); g.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill();
 }
+
+/* ✅ FIX: 블러 적용 컨텍스트 및 에지 페더링 */
 function nebulaCanvas(w,h,color,blobs){
   const c=document.createElement('canvas'); c.width=w; c.height=h;
   const x=c.getContext('2d'); x.globalCompositeOperation='lighter';
@@ -125,10 +127,32 @@ function nebulaCanvas(w,h,color,blobs){
     const rr=rand(Math.min(w,h)*0.02, Math.max(w,h)*0.16);
     blurredBlob(x, Math.random()*w, Math.random()*h, rr, color);
   }
-  if('filter' in x){ x.filter='blur(5px)'; const t=document.createElement('canvas'); t.width=w; t.height=h;
-    t.getContext('2d').drawImage(c,0,0); x.filter='none'; x.clearRect(0,0,w,h); x.drawImage(t,0,0); }
+  if('filter' in x){
+    const t=document.createElement('canvas'); t.width=w; t.height=h;
+    const xt=t.getContext('2d');
+
+    // 실제 그리는 컨텍스트(xt)에 블러 적용
+    xt.filter='blur(6px)';
+    xt.drawImage(c,0,0);
+
+    // 라디얼 마스크로 에지 페더링(박스 경계 완화)
+    xt.filter='none';
+    xt.globalCompositeOperation='destination-in';
+    const inner = Math.min(w,h)*0.45;
+    const outer = Math.hypot(w,h)*0.55;
+    const g=xt.createRadialGradient(w/2,h/2,inner, w/2,h/2,outer);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    xt.fillStyle=g; xt.fillRect(0,0,w,h);
+
+    // 결과를 원본 캔버스로 되돌리기
+    x.globalCompositeOperation='source-over';
+    x.clearRect(0,0,w,h);
+    x.drawImage(t,0,0);
+  }
   return c;
 }
+
 function dustCanvas(w,h,angleRad,count,strength){
   const c=document.createElement('canvas'); c.width=w; c.height=h;
   const x=c.getContext('2d'); x.globalCompositeOperation='destination-out';
@@ -318,6 +342,7 @@ function ensureBackBuffer(){
   backCanvas.height = canvas.height;
   back = backCanvas.getContext('2d', { alpha:true });
   back.imageSmoothingEnabled = true;
+  back.imageSmoothingQuality = 'high'; // ✅ 보간 품질 향상
   back.setTransform(dpr,0,0,dpr,0,0); // CSS px 좌표계
   needsBackResize = false;
 }
@@ -466,14 +491,7 @@ function drawMeteors(list){
   }
 }
 
-/* ===================== 별(Seam‑Free 교차 페이드) ===================== */
-function sstep(t){ return t<=0?0 : t>=1?1 : t*t*(3-2*t); }
-function crossfadeWeights(pos, size, margin){
-  let base = 1, left = 0, right = 0;
-  if(pos < margin){ const k = sstep(pos / margin); base = k; left = 1 - k; }
-  else if(pos > size - margin){ const k = sstep((size - pos) / margin); base = k; right = 1 - k; }
-  return {base, left, right};
-}
+/* ===================== 별(하드 래핑: 사라짐/깜빡임 방지) ===================== */
 function drawStarsSeamFree(list, sprite, boost, tNow){
   back.globalCompositeOperation='screen';
   const Rc=0.55*Math.min(W,H);
@@ -481,43 +499,52 @@ function drawStarsSeamFree(list, sprite, boost, tNow){
 
   for(let i=0;i<list.length;i++){
     const s=list[i];
-    let x0 = (s.x + flowX*s.depth) % W; if(x0<0) x0+=W;
-    let y0 = (s.y + flowY*s.depth) % H; if(y0<0) y0+=H;
 
-    const wx = crossfadeWeights(x0, W, CFG.TILE_MARGIN);
-    const wy = crossfadeWeights(y0, H, CFG.TILE_MARGIN);
+    // 1) 월드 좌표(랩 적용)
+    let xw = (s.x + flowX*s.depth) % W; if(xw<0) xw+=W;
+    let yw = (s.y + flowY*s.depth) % H; if(yw<0) yw+=H;
 
-    const tilesX = [{dx:0,w:wx.base},{dx:-W,w:wx.left},{dx:+W,w:wx.right}];
-    const tilesY = [{dy:0,w:wy.base},{dy:-H,w:wy.left},{dy:+H,w:wy.right}];
+    // 2) 중심 기준 벡터(타일 오프셋 적용 전)로 스월/패럴랙스 계산
+    const cx0 = xw - W/2, cy0 = yw - H/2;
 
-    for(const tx of tilesX){
-      if(tx.w<=0.001) continue;
-      for(const ty of tilesY){
-        if(ty.w<=0.001) continue;
+    const rNorm    = Math.min(1, Math.hypot(cx0,cy0)/Rc);
+    const depthEff = clamp(s.depth + CFG.CENTER_DEPTH_STRENGTH*(1-rNorm), 0, 1);
 
-        let x = x0 + tx.dx, y = y0 + ty.dy;
-        const cx0=x-W/2, cy0=y-H/2;
+    const a  = starSwirl*(0.5+0.5*depthEff);
+    const cs = Math.cos(a), sn = Math.sin(a);
+    const cx1 = (cx0*cs - cy0*sn) + (mouse.x-0.5)*CFG.STAR_PARA*depthEff;
+    const cy1 = (cx0*sn + cy0*cs) + (mouse.y-0.5)*CFG.STAR_PARA*depthEff;
 
-        const rNorm=Math.min(1, Math.hypot(cx0,cy0)/Rc);
-        const depthEff=clamp(s.depth + CFG.CENTER_DEPTH_STRENGTH*(1-rNorm), 0, 1);
+    // 최종 기본 좌표(오프셋 전)
+    const baseX = W/2 + cx1;
+    const baseY = H/2 + cy1;
 
-        const a=starSwirl*(0.5+0.5*depthEff), cs=Math.cos(a), sn=Math.sin(a);
-        const cx1=(cx0*cs - cy0*sn) + (mouse.x-0.5)*CFG.STAR_PARA*depthEff;
-        const cy1=(cx0*sn + cy0*cs) + (mouse.y-0.5)*CFG.STAR_PARA*depthEff;
-        const px=W/2+cx1, py=H/2+cy1;
+    const amp   = CFG.STAR_TWINKLE_AMP;
+    const tw    = 1.0 - amp + amp*Math.sin(tNow*s.tw + s.ph + 0.001*i);
+    const alphaBase = clamp(0.76*CFG.EXPOSURE*boost, 0, CFG.BRIGHT_CAP);
+    const alphaCore = Math.min(alphaBase*tw*(0.95+0.10*rNorm), CFG.BRIGHT_CAP);
 
-        const amp=CFG.STAR_TWINKLE_AMP;
-        const tw=1.0 - amp + amp*Math.sin(tNow*s.tw + s.ph + 0.001*i);
-        const alphaBase=clamp(0.76*CFG.EXPOSURE*boost, 0, CFG.BRIGHT_CAP);
-        let alpha=Math.min(alphaBase*tw*(0.95+0.10*rNorm), CFG.BRIGHT_CAP);
-        alpha *= (tx.w * ty.w);
+    const sizeCenter = 0.85+0.25*rNorm;
+    const r = s.size*sizeCenter*(1 + 0.20*(1 - tw));
 
-        const sizeCenter=0.85+0.25*rNorm;
-        const r=s.size*sizeCenter*(1 + 0.20*(1 - tw));
+    // 3) 하드 래핑: 별은 가장자리에서도 밝기 저하 없이 반대편에 복제
+    const offsetsX = [0];
+    const offsetsY = [0];
+    if(baseX < r)        offsetsX.push(+W);
+    else if(baseX > W-r) offsetsX.push(-W);
+    if(baseY < r)        offsetsY.push(+H);
+    else if(baseY > H-r) offsetsY.push(-H);
+
+    for(const dx of offsetsX){
+      for(const dy of offsetsY){
+        const px = baseX + dx;
+        const py = baseY + dy;
 
         back.save(); back.translate(px,py);
-        back.globalAlpha=alpha; back.drawImage(sprite,-r,-r,r*2,r*2);
-        back.globalAlpha=Math.min(alpha*0.18, CFG.BRIGHT_CAP);
+        back.globalAlpha = alphaCore;
+        back.drawImage(sprite,-r,-r,r*2,r*2);
+
+        back.globalAlpha=Math.min(alphaCore*0.18, CFG.BRIGHT_CAP);
         back.fillStyle=`rgba(${s.tint[0]},${s.tint[1]},${s.tint[2]},${back.globalAlpha})`;
         back.beginPath(); back.arc(0,0,r*0.9,0,TAU); back.fill();
         back.restore();
