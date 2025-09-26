@@ -85,8 +85,6 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   }, [user, isOpen, profile, validateUsername]);
 
   const handleSave = async () => {
-    if (!user) return;
-
     if (!validateUsername(username)) {
       toast.error(t('FixErrorsBeforeSave', 'Please fix the errors before saving.'));
       return;
@@ -108,6 +106,27 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         updateData.badge_color = badgeColor;
         updateData.banner_color = bannerColor;
     }
+    
+    // Always persist local game settings (even without auth)
+    try {
+      localStorage.setItem('swap2RandomStart', String(randomStart));
+      localStorage.setItem('colorSelectTimeoutMs', String(colorSelectTimeout));
+      localStorage.setItem('swap2BannerMs', String(bannerDuration));
+      window.dispatchEvent(new CustomEvent('settings-changed', {
+        detail: {
+          randomStart,
+          colorSelectTimeoutMs: Number(colorSelectTimeout),
+          swap2BannerMs: Number(bannerDuration),
+        },
+      }));
+    } catch {}
+
+    if (!user) {
+      setLoading(false);
+      toast.success(t('SettingsSaved'));
+      onClose();
+      return;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -121,20 +140,6 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     if (error) {
       toast.error(t('FailedToSaveSettings') + ': ' + error.message);
     } else if (data) {
-      // Persist local game settings
-      try {
-        localStorage.setItem('swap2RandomStart', String(randomStart));
-        localStorage.setItem('colorSelectTimeoutMs', String(colorSelectTimeout));
-        localStorage.setItem('swap2BannerMs', String(bannerDuration));
-        // Notify live pages
-        window.dispatchEvent(new CustomEvent('settings-changed', {
-          detail: {
-            randomStart,
-            colorSelectTimeoutMs: Number(colorSelectTimeout),
-            swap2BannerMs: Number(bannerDuration),
-          },
-        }));
-      } catch {}
       toast.success(t('SettingsSaved'));
       updateProfile(data);
       onClose();

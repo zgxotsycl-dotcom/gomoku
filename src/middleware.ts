@@ -30,6 +30,14 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${lng}${req.nextUrl.pathname}`, req.url));
   }
 
+  // If path has supported lng but differs from cookie, align to cookie (persisted preference)
+  const currentLng = languages.find((l) => req.nextUrl.pathname.startsWith(`/${l}`));
+  if (currentLng && lng && currentLng !== lng) {
+    const url = new URL(req.url);
+    url.pathname = url.pathname.replace(`/${currentLng}`, `/${lng}`);
+    return NextResponse.redirect(url);
+  }
+
   if (req.headers.has('referer')) {
     const refererUrl = new URL(req.headers.get('referer') as string);
     const lngInReferer = languages.find((l) => refererUrl.pathname.startsWith(`/${l}`));
@@ -38,6 +46,13 @@ export function middleware(req: NextRequest) {
       response.cookies.set(cookieName, lngInReferer);
     }
     return response;
+  }
+
+  // Ensure cookie reflects path language for first-time/anonymous visitors
+  if (currentLng) {
+    const res = NextResponse.next();
+    res.cookies.set(cookieName, currentLng);
+    return res;
   }
 
   return NextResponse.next();

@@ -50,23 +50,22 @@ const OnlineMultiplayerMenu = ({ onBack, setGameMode, socketRef, userProfile, on
         );
     }
     return (
-        <div className="flex flex-col gap-4 mb-4 p-6 bg-gray-800/70 backdrop-blur-sm rounded-lg w-full max-w-sm shadow-2xl">
-            <div className="flex justify-between text-white text-sm mb-2 gap-4 border-b border-gray-700 pb-2">
+        <div className="flex flex-col gap-4 mb-4 p-4 md:p-6 bg-gray-800/70 backdrop-blur-sm rounded-lg w-full max-w-xs sm:max-w-sm shadow-2xl">
+            <div className="flex justify-between items-center text-white text-xs md:text-sm mb-1 md:mb-2 gap-4 border-b border-gray-700 pb-1 md:pb-2" aria-live="polite">
                 <span>{t('Online')}: {onlineUsers}</span>
                 <span>{t('InQueue')}: {inQueueUsers}</span>
             </div>
-            <button onClick={handlePublicMatch} className="px-4 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors btn-hover-scale" disabled={buttonsDisabled}>{t('StartPublicMatch')}</button>
-            <button onClick={handleCreatePrivate} className="px-4 py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-colors btn-hover-scale" disabled={buttonsDisabled}>{t('CreatePrivateRoom')}</button>
-            <button onClick={() => setMode('private')} className="px-4 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transition-colors btn-hover-scale" disabled={buttonsDisabled}>{t('JoinPrivateRoom')}</button>
-            
-            <div className="h-6 mt-2">
-                {isQueuing && (
-                    <button onClick={handleCancelMatchmaking} className="text-sm text-red-400 hover:text-red-300 w-full">
-                        {t('CancelMatchmaking', 'Cancel Matchmaking')}
-                    </button>
-                )}
-            </div>
-            <button onClick={onBack} className="text-sm text-gray-400 hover:text-white mt-4 pt-4 border-t border-gray-700">{t('Back')}</button>
+            <button onClick={handlePublicMatch} className="w-full px-4 py-2.5 md:py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm md:text-base btn-hover-scale" disabled={buttonsDisabled}>{t('StartPublicMatch')}</button>
+            <button onClick={handleCreatePrivate} className="w-full px-4 py-2.5 md:py-3 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition-colors text-sm md:text-base btn-hover-scale" disabled={buttonsDisabled}>{t('CreatePrivateRoom')}</button>
+            <button onClick={() => setMode('private')} className="w-full px-4 py-2.5 md:py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transition-colors text-sm md:text-base btn-hover-scale" disabled={buttonsDisabled}>{t('JoinPrivateRoom')}</button>
+
+            {isQueuing && (
+              <button onClick={handleCancelMatchmaking} className="w-full text-xs md:text-sm text-red-400 hover:text-red-300 mt-1">
+                {t('CancelMatchmaking', 'Cancel Matchmaking')}
+              </button>
+            )}
+
+            <button onClick={onBack} className="text-xs md:text-sm text-gray-400 hover:text-white mt-2 md:mt-4 pt-2 md:pt-4 border-t border-gray-700">{t('Back')}</button>
         </div>
     );
 };

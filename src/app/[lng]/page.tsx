@@ -6,7 +6,7 @@ import Board from '@/components/Board';
 import type { GameMode } from '@/types';
 import Auth from '@/components/Auth';
 import dynamic from 'next/dynamic';
-const ScrollLeaderboard3D = dynamic(() => import('@/components/ScrollLeaderboard3D'), { ssr: false });
+const AnimatedLeaderboard = dynamic(() => import('@/components/AnimatedLeaderboard'), { ssr: false });
 import SettingsModal from '@/components/SettingsModal';
 import SupporterBenefitsModal from '@/components/SupporterBenefitsModal';
 import OnlineMultiplayerMenu from '@/components/OnlineMultiplayerMenu';
@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useTranslation } from 'react-i18next';
 
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { FiSettings, FiHeart, FiLogOut, FiFilm } from 'react-icons/fi';
 import Ranking from '@/components/Ranking'; // WebGL 불가 시 폴백
 import DifficultySelect from '@/components/DifficultySelect';
 import { io, Socket } from 'socket.io-client';
@@ -27,27 +28,63 @@ const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () =>
   const { user, profile } = useAuth();
 
   return (
-    <div className="absolute top-4 right-4 text-white flex items-center gap-4 z-10">
-      <LanguageSwitcher />
-      <span>{profile?.username || user?.email}</span>
-      {user && !user.is_anonymous && (
-        <>
-          <button onClick={onOpenSettings} className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700 btn-hover-scale">{t('Settings')}</button>
-          {profile?.is_supporter ? (
-            <Link href="/replays" className="px-3 py-1 bg-indigo-600 rounded hover:bg-indigo-700 btn-hover-scale">
-              {t('MyReplays')}
-            </Link>
-          ) : (
-            <button onClick={onOpenBenefits} className="px-3 py-1 bg-yellow-500 text-black rounded hover:bg-yellow-600 btn-hover-scale">
-              {t('BecomeASupporter')}
+    <>
+      {/* Desktop (md+) toolbar */}
+      <div className="absolute top-4 right-4 text-white hidden md:flex items-center gap-4 z-10">
+        <LanguageSwitcher />
+        <span className="truncate max-w-[220px] opacity-90">{profile?.username || user?.email}</span>
+        {user && !user.is_anonymous && (
+          <>
+            <button onClick={onOpenSettings} className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-700 btn-hover-scale">{t('Settings')}</button>
+            {profile?.is_supporter ? (
+              <Link href="/replays" className="px-3 py-1 bg-indigo-600 rounded hover:bg-indigo-700 btn-hover-scale">
+                {t('MyReplays')}
+              </Link>
+            ) : (
+              <button onClick={onOpenBenefits} className="px-3 py-1 bg-yellow-500 text-black rounded hover:bg-yellow-600 btn-hover-scale">
+                {t('BecomeASupporter')}
+              </button>
+            )}
+            <button onClick={() => supabase.auth.signOut()} className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 btn-hover-scale">
+              {t('Logout')}
             </button>
+          </>
+        )}
+      </div>
+
+      {/* Mobile toolbar */}
+      <div className="fixed inset-x-0 z-10 flex items-center justify-between px-3 pt-2 md:hidden"
+           style={{ top: 'calc(env(safe-area-inset-top, 0px))' }}>
+        <div className="scale-90 origin-left">
+          <LanguageSwitcher />
+        </div>
+        <div className="flex items-center gap-2">
+          {user && !user.is_anonymous && (
+            <>
+              <button aria-label={t('Settings')} onClick={onOpenSettings}
+                      className="p-2 rounded bg-gray-700/70 text-white hover:bg-gray-600">
+                <FiSettings />
+              </button>
+              {profile?.is_supporter ? (
+                <Link href="/replays" aria-label={t('MyReplays')}
+                      className="p-2 rounded bg-indigo-600/80 text-white hover:bg-indigo-600">
+                  <FiFilm />
+                </Link>
+              ) : (
+                <button aria-label={t('BecomeASupporter')} onClick={onOpenBenefits}
+                        className="p-2 rounded bg-yellow-500 text-black hover:bg-yellow-400">
+                  <FiHeart />
+                </button>
+              )}
+              <button aria-label={t('Logout')} onClick={() => supabase.auth.signOut()}
+                      className="p-2 rounded bg-red-600/90 text-white hover:bg-red-600">
+                <FiLogOut />
+              </button>
+            </>
           )}
-          <button onClick={() => supabase.auth.signOut()} className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 btn-hover-scale">
-            {t('Logout')}
-          </button>
-        </>
-      )}
-    </div>
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -394,9 +431,13 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
-    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002', {
+    // Resolve socket URL: prefer env, else same-origin (for self-hosted socket server)
+    const base = (process.env.NEXT_PUBLIC_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+    const socket = io(base, {
       path: '/socket.io/',
-      transports: ['websocket'],
+      // Allow polling fallback for environments where pure websocket is blocked
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
     });
     socketRef.current = socket;
 
@@ -405,6 +446,10 @@ export default function Home() {
       socket.emit('authenticate', user.id);
     });
     socket.on('disconnect', () => setIsSocketConnected(false));
+    socket.on('connect_error', (err) => {
+      console.warn('Socket connect_error:', err?.message || err);
+      toast.error('온라인 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.');
+    });
     socket.on('user-counts-update', ({ onlineUsers, inQueueUsers }) => {
       setOnlineUsers(onlineUsers);
       setInQueueUsers(inQueueUsers);
@@ -424,7 +469,15 @@ export default function Home() {
       setShowRoomCodeModal(true);
     });
 
-    return () => { socket.disconnect(); };
+    // If not connected within 5s, inform user
+    const t = window.setTimeout(() => {
+      if (!socket.connected) {
+        toast.error('온라인 서버 응답이 없습니다. 온라인 대전을 비활성화합니다.');
+        setIsSocketConnected(false);
+      }
+    }, 5000);
+
+    return () => { window.clearTimeout(t); socket.disconnect(); };
   }, [user]);
 
   // 로딩 화면 진행도(감성)
@@ -533,7 +586,7 @@ export default function Home() {
           <Auth />
         </div>
       ) : (
-        <main className="flex flex-col items-center justify-center p-10 pt-20">
+<main className="flex flex-col items-center justify-center p-4 pt-16 md:p-10 md:pt-20">
           {!selectedGameMode && <AccountInfo onOpenSettings={() => setSettingsOpen(true)} onOpenBenefits={handleBecomeSupporter} />}
 
           {selectedGameMode === 'pvo' && room && !showRoomCodeModal ? (
@@ -557,27 +610,27 @@ export default function Home() {
               />
             </div>
           ) : (
-            <div className="text-center">
-              <h1 className="text-5xl font-extrabold text-white mb-8 text-center shadow-lg [text-shadow:_2px_2px_8px_rgb(0_0_0_/_50%)]">
+            <div className="text-center px-3">
+              <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 md:mb-8 text-center shadow-lg [text-shadow:_2px_2px_8px_rgb(0_0_0_/_50%)]">
                 {t('GomokuGame')}
               </h1>
-              <h2 className="text-3xl text-white mb-6">{t('SelectGameMode')}</h2>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <h2 className="text-2xl md:text-3xl text-white mb-5 md:mb-6">{t('SelectGameMode')}</h2>
+              <div className="mx-auto w-full max-w-xs sm:max-w-none flex flex-col sm:flex-row gap-3 md:gap-4">
                 <button
                   onClick={() => setShowPvaDifficulty(true)}
-                  className="px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-xl btn-hover-scale"
+                  className="px-6 py-3 md:px-8 md:py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-lg md:text-xl btn-hover-scale"
                 >
                   {t('PvsAI')}
                 </button>
                 <button
                   onClick={() => { user?.is_anonymous ? setShowLoginModal(true) : setSelectedGameMode('pvo'); }}
-                  className="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-colors text-xl btn-hover-scale"
+                  className="px-6 py-3 md:px-8 md:py-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-colors text-lg md:text-xl btn-hover-scale"
                 >
                   {t('PvsOnline')}
                 </button>
                 <button
                   onClick={() => setSelectedGameMode('pvp')}
-                  className="px-8 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors text-xl btn-hover-scale"
+                  className="px-6 py-3 md:px-8 md:py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors text-lg md:text-xl btn-hover-scale"
                 >
                   {t('PvsPlayer')}
                 </button>
@@ -585,22 +638,22 @@ export default function Home() {
 
               {/* 토너먼트(후원자) */}
               {profile?.is_supporter && (
-                <div className="mt-4">
-                  <button
-                    onClick={() => toast(t('coming_soon'))}
-                    className="px-8 py-4 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-xl btn-hover-scale"
-                  >
-                    {t('Tournaments')}
-                  </button>
-                </div>
+              <div className="mt-3 md:mt-4">
+                <button
+                  onClick={() => toast(t('coming_soon'))}
+                  className="px-5 py-2.5 md:px-8 md:py-4 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-base md:text-xl btn-hover-scale"
+                >
+                  {t('Tournaments')}
+                </button>
+              </div>
               )}
 
               {/* 후원 유도 */}
-              <div className="mt-8 mb-8">
+              <div className="mt-5 md:mt-8 mb-6 md:mb-8">
                 {profile && !profile.is_supporter && (
                   <button
                     onClick={handleBecomeSupporter}
-                    className="px-6 py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-lg btn-hover-scale"
+                    className="px-5 py-2.5 md:px-6 md:py-3 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-base md:text-lg btn-hover-scale"
                   >
                     {t('BecomeASupporter')}
                   </button>
@@ -630,14 +683,14 @@ export default function Home() {
                   className="mt-3"
                   style={{
                     overflow: 'hidden',
-                    minHeight: showRanking ? 480 : 0, // ScrollLeaderboard3D가 내부에서 높이를 관리
+                    minHeight: showRanking ? 480 : 0, // AnimatedLeaderboard가 내부에서 높이를 관리
                     willChange: 'min-height'
                   }}
                 >
                   {showRanking && (
                     canUseWebGL ? (
                       // 조명/그림자 반응 좋은 버텍스 변형 모드 + HTML 오버레이(정확한 UV→3D)
-                      <ScrollLeaderboard3D open={showRanking} mode="shader" overlay="raycast" />
+                      <AnimatedLeaderboard open={showRanking} mode="shader" overlay="raycast" />
                     ) : (
                       // WebGL 불가 시 폴백 리스트
                       <div className="p-4 bg-gray-800/70 rounded-lg border border-gray-700">
@@ -752,3 +805,4 @@ export default function Home() {
     </div>
   );
 }
+

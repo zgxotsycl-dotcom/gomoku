@@ -57,13 +57,19 @@ export const GameBoard = ({
     })();
 
     return (
-        <div className={`relative ${isWinningShake ? 'animate-board-shake' : ''}`} style={{ width: '64vmin', height: '64vmin' }}>
+        <div
+            className={`relative ${isWinningShake ? 'animate-board-shake' : ''}`}
+            // 모바일에서는 너무 작지 않게, 데스크탑에서는 과도하게 커지지 않도록 클램프 처리
+            // 300px ~ 800px 사이에서 92vmin 기준으로 반응
+            style={{ width: 'clamp(300px, 92vmin, 800px)', height: 'clamp(300px, 92vmin, 800px)' }}
+        >
             {/* The frame with a wooden color */}
-            <div className={`p-4 bg-[#d2b48c] rounded-md shadow-lg w-full h-full ${winningLine ? 'animate-red-shadow' : ''}`}>
+            <div className={`p-2 md:p-4 bg-[#d2b48c] rounded-md shadow-lg w-full h-full ${winningLine ? 'animate-red-shadow' : ''}`}>
                 {/* The interactive grid area */}
                 <div
                     onClick={handleBoardClick}
-                    className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm select-none touch-manipulation overscroll-none ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    role="grid"
                 >
                     {/* Tile-by-tile intro overlay (from top-left corner) */}
                     {startAnimKey > 0 && (

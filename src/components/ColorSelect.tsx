@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type PlayerChoice = 'black' | 'white';
 
@@ -15,6 +16,7 @@ interface ColorSelectProps {
 const EXIT_DURATION = 220;
 
 export default function ColorSelect({ visible, onSelect, timeoutMs, onTimeout, onRequestOption3 }: ColorSelectProps) {
+  const { t } = useTranslation();
   const effectiveTimeout = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : null;
   const showOption3 = typeof onRequestOption3 === 'function';
   const [remain, setRemain] = useState(effectiveTimeout ?? 0);
@@ -130,7 +132,7 @@ export default function ColorSelect({ visible, onSelect, timeoutMs, onTimeout, o
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm ${overlayClass}`}>
       <div className={`bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[640px] max-w-[96%] ${panelClass}`}>
-        <h3 className="text-center text-white text-2xl font-bold mb-4">색상을 선택해주세요</h3>
+        <h3 className="text-center text-white text-2xl font-bold mb-4">{t('colorSelect.title', '색상을 선택해주세요')}</h3>
         <div className={`grid grid-cols-1 ${showOption3 ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
           <button
             type="button"
@@ -141,7 +143,7 @@ export default function ColorSelect({ visible, onSelect, timeoutMs, onTimeout, o
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-black border border-gray-400 shadow-lg animate-chroma-shine" />
               <div className="text-left">
-                <div className="text-white font-bold text-lg">흑돌을 선택</div>
+                <div className="text-white font-bold text-lg">{t('colorSelect.black', '흑으로 시작')}</div>
               </div>
             </div>
           </button>
@@ -154,7 +156,7 @@ export default function ColorSelect({ visible, onSelect, timeoutMs, onTimeout, o
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white border border-gray-400 shadow-lg animate-chroma-shine" />
               <div className="text-left">
-                <div className="text-white font-bold text-lg">백돌을 선택</div>
+                <div className="text-white font-bold text-lg">{t('colorSelect.white', '백으로 시작')}</div>
               </div>
             </div>
           </button>
@@ -166,8 +168,8 @@ export default function ColorSelect({ visible, onSelect, timeoutMs, onTimeout, o
             >
               <div className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.2),transparent_50%)]" />
               <div className="flex flex-col gap-2">
-                <div className="text-white font-bold text-lg">추가 두 수 배치</div>
-                <div className="text-gray-300 text-sm">백과 흑 한 수씩 더 두고 색상 선택권을 다시 넘깁니다.</div>
+                <div className="text-white font-bold text-lg">{t('colorSelect.option3', '추가 백 2수 배치')}</div>
+                <div className="text-gray-300 text-sm">{t('colorSelect.option3.desc', '백 1수와 흑 1수를 추가 배치한 뒤 색상을 다시 정합니다.')}</div>
               </div>
             </button>
           )}
@@ -212,4 +214,3 @@ export default function ColorSelect({ visible, onSelect, timeoutMs, onTimeout, o
     </div>
   );
 }
-

@@ -1,29 +1,79 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
-  const body = await request.json();
+export const dynamic = 'force-dynamic';
 
-  try {
-    const base = process.env.NEXT_PUBLIC_AI_BASE_URL || 'https://ai.omokk.com';
-    const aiServerUrl = base + '/get-move';
+const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || '';
+const AI_TIMEOUT_MS = Number(process.env.SWAP2_SERVER_TIMEOUT_MS || 3000);
 
-    const response = await fetch(aiServerUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      return new NextResponse(`AI server error: ${response.statusText}`, { status: response.status });
+function computeFallbackMove(board: any[][], player: 'black' | 'white') {
+  const n = Array.isArray(board) ? board.length : 15;
+  const safeBoard: (string|null)[][] = Array.isArray(board)
+    ? board
+    : Array.from({ length: n }, () => Array(n).fill(null));
+  // last move heuristic
+  let lastR = -1, lastC = -1;
+  outer: for (let r=n-1; r>=0; r--) {
+    for (let c=n-1; c>=0; c--) {
+      if (safeBoard[r][c] === 'black' || safeBoard[r][c] === 'white') { lastR=r; lastC=c; break outer; }
     }
-
-    const data = await response.json();
-    return NextResponse.json(data);
-
-  } catch (error) {
-    console.error('Error proxying to AI server:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
   }
+  const around = (r0:number,c0:number) => {
+    for (let rad=1; rad<=2; rad++) {
+      for (let dr=-rad; dr<=rad; dr++) {
+        for (let dc=-rad; dc<=rad; dc++) {
+          const r=r0+dr, c=c0+dc;
+          if (r>=0 && c>=0 && r<n && c<n && safeBoard[r][c]==null) return [r,c];
+        }
+      }
+    }
+    // center bias
+    const mid = Math.floor(n/2);
+    if (safeBoard[mid][mid]==null) return [mid,mid];
+    // any empty
+    for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (safeBoard[r][c]==null) return [r,c];
+    return [Math.floor(n/2), Math.floor(n/2)];
+  };
+  if (lastR!==-1) return around(lastR,lastC);
+  const mid = Math.floor(n/2);
+  return around(mid,mid);
+}
+
+async function fetchAi(url: string, body: unknown) {
+  if (!url || !url.startsWith('http') || /localhost|127\.0\.0\.1|0\.0\.0\.0|::1/.test(url)) {
+    return null;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    if ((e as Error)?.name !== 'AbortError') console.warn('AI /get-move failed:', e);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const board = Array.isArray((body as any)?.board) ? (body as any).board : null;
+  const player = ((body as any)?.player === 'black' || (body as any)?.player === 'white') ? (body as any).player : 'black';
+
+  const remoteUrl = AI_BASE_URL ? `${AI_BASE_URL.replace(/\/$/, '')}/get-move` : '';
+  const remote = await fetchAi(remoteUrl, body);
+  if (remote && Array.isArray(remote?.move) && Number.isInteger(remote.move[0]) && Number.isInteger(remote.move[1])) {
+    return NextResponse.json(remote);
+  }
+
+  // Fallback move to guarantee progress
+  const [r, c] = computeFallbackMove(board || [], player);
+  return NextResponse.json({ move: [r, c], source: 'fallback' });
 }

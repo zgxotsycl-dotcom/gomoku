@@ -104,6 +104,7 @@ type Action =
     | { type: 'SET_HISTORY', payload: Move[] }
     | { type: 'SET_AI_PLAYER', payload: Player }
     | { type: 'SET_USER_PROFILE', payload: Profile | null }
+    | { type: 'SET_OPPONENT_PROFILE', payload: Profile | null }
     | { type: 'SET_AI_KNOWLEDGE', payload: AIKnowledge }
     | { type: 'ENTER_WHAT_IF' }
     | { type: 'EXIT_WHAT_IF' }
@@ -113,6 +114,15 @@ type Action =
     | { type: 'SET_IS_REPLAYING', payload: boolean }
     | { type: 'TICK_TIMER' }
     | { type: 'STOP_WIN_ANIMATION' } // ADDED
+    // Online multiplayer (socket.io)
+    | { type: 'SET_SOCKET_CONNECTED', payload: boolean }
+    | { type: 'SET_ONLINE_COUNTS', payload: { onlineUsers: number; inQueueUsers: number } }
+    | { type: 'SET_PLAYER_ROLE', payload: Player | null }
+    | { type: 'SET_ROOM', payload: string }
+    | { type: 'SET_CREATED_ROOM', payload: string | null }
+    | { type: 'SET_SHOW_ROOM_CODE_MODAL', payload: boolean }
+    | { type: 'APPLY_REMOTE_MOVE', payload: { row: number; col: number; player: Player; newPlayer: Player } }
+    | { type: 'SET_WINNER_ROLE', payload: Player }
     | { type: 'SHOW_COLOR_SELECT' }
     | { type: 'HIDE_COLOR_SELECT' }
     | { type: 'TRIGGER_START_ANIM' }
@@ -332,6 +342,49 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
         }
         case 'SET_USER_PROFILE':
             return { ...state, userProfile: action.payload };
+        case 'SET_OPPONENT_PROFILE':
+            return { ...state, opponentProfile: action.payload };
+        case 'SET_SOCKET_CONNECTED':
+            return { ...state, isSocketConnected: action.payload };
+        case 'SET_ONLINE_COUNTS':
+            return { ...state, onlineUsers: action.payload.onlineUsers, inQueueUsers: action.payload.inQueueUsers };
+        case 'SET_PLAYER_ROLE':
+            return { ...state, playerRole: action.payload };
+        case 'SET_ROOM':
+            return { ...state, room: action.payload };
+        case 'SET_CREATED_ROOM':
+            return { ...state, createdRoomId: action.payload };
+        case 'SET_SHOW_ROOM_CODE_MODAL':
+            return { ...state, showRoomCodeModal: action.payload };
+        case 'APPLY_REMOTE_MOVE': {
+            // Apply server-authoritative move without local turn toggling assumptions
+            const { row, col, player, newPlayer } = action.payload;
+            if (state.board[row][col] || state.winner || state.gameState !== 'playing') return state;
+            const newBoard = state.board.map(r => [...r]);
+            newBoard[row][col] = player;
+            const winInfo = checkWin(newBoard, player, row, col);
+            if (winInfo) {
+                return {
+                    ...state,
+                    board: newBoard,
+                    history: [...state.history, { player, row, col }],
+                    winner: player,
+                    winningLine: winInfo,
+                    gameState: 'post-game',
+                    gameDuration: state.startTime ? formatDuration((Date.now() - state.startTime) / 1000) : "",
+                    isWinningShake: true,
+                    currentPlayer: newPlayer,
+                };
+            }
+            return {
+                ...state,
+                board: newBoard,
+                history: [...state.history, { player, row, col }],
+                currentPlayer: newPlayer,
+            };
+        }
+        case 'SET_WINNER_ROLE':
+            return { ...state, winner: action.payload, gameState: 'post-game' };
         case 'ENTER_WHAT_IF': {
             const size = state.board.length || BOARD_SIZE;
             const replayBoard = Array(size).fill(null).map(() => Array(size).fill(null));
@@ -750,6 +803,116 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         }
     }, [state.isWinningShake]);
 
+    // Initialize Socket.IO client (for online modes + menu counters)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        if (socketRef.current) return;
+        const isDev = (() => {
+            try { return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'; } catch { return false; }
+        })();
+        const baseUrl = (process.env.NEXT_PUBLIC_SOCKET_URL
+            || (isDev ? 'http://localhost:3002' : `${window.location.protocol}//${window.location.host}`));
+
+        const socket = io(baseUrl, {
+            path: '/socket.io/',
+            transports: ['websocket', 'polling'],
+            withCredentials: true,
+        });
+        socketRef.current = socket;
+
+        const onConnect = () => {
+            dispatch({ type: 'SET_SOCKET_CONNECTED', payload: true });
+            socket.emit('request-user-counts');
+        };
+        const onDisconnect = () => {
+            dispatch({ type: 'SET_SOCKET_CONNECTED', payload: false });
+        };
+        const onCounts = (data: { onlineUsers: number; inQueueUsers: number }) => {
+            dispatch({ type: 'SET_ONLINE_COUNTS', payload: data });
+        };
+        const onAssignRole = (role: Player) => {
+            dispatch({ type: 'SET_PLAYER_ROLE', payload: role });
+        };
+        const onRoomCreated = (roomId: string) => {
+            dispatch({ type: 'SET_CREATED_ROOM', payload: roomId });
+            dispatch({ type: 'SET_SHOW_ROOM_CODE_MODAL', payload: true });
+        };
+        const onJoinedSpectator = (payload: { roomId: string; players: Record<string, any> }) => {
+            dispatch({ type: 'SET_ROOM', payload: payload.roomId });
+            dispatch({ type: 'SET_GAME_STATE', payload: 'playing' });
+        };
+        const onGameStart = (payload: { roomId: string; players: Record<string, any>; openingBoard?: (Player|null)[][]; openingToMove?: Player }) => {
+            dispatch({ type: 'SET_ROOM', payload: payload.roomId });
+            dispatch({ type: 'SET_GAME_STATE', payload: 'playing' });
+            if (payload.openingBoard && typeof window !== 'undefined') {
+                try {
+                    const toMove = payload.openingToMove || 'white';
+                    sessionStorage.setItem('openingBoard', JSON.stringify({ board: payload.openingBoard, toMove }));
+                    window.dispatchEvent(new CustomEvent('apply-opening', { detail: { board: payload.openingBoard, toMove } } as any));
+                } catch {}
+            }
+        };
+        const onGameStateUpdate = (payload: { move: { row: number; col: number }; newPlayer: Player }) => {
+            const { row, col } = payload.move;
+            const player: Player = payload.newPlayer === 'black' ? 'white' : 'black';
+            dispatch({ type: 'APPLY_REMOTE_MOVE', payload: { row, col, player, newPlayer: payload.newPlayer } });
+        };
+        const onGameOver = (d: { winner: Player; reason?: string }) => {
+            dispatch({ type: 'SET_WINNER_ROLE', payload: d.winner });
+        };
+
+        socket.on('connect', onConnect);
+        socket.on('disconnect', onDisconnect);
+        socket.on('user-counts-update', onCounts);
+        socket.on('assign-role', onAssignRole);
+        socket.on('room-created', onRoomCreated);
+        socket.on('joined-as-spectator', onJoinedSpectator);
+        socket.on('game-start', onGameStart);
+        socket.on('game-state-update', onGameStateUpdate);
+        socket.on('game-over-update', onGameOver);
+
+        return () => {
+            try {
+                socket.off('connect', onConnect);
+                socket.off('disconnect', onDisconnect);
+                socket.off('user-counts-update', onCounts);
+                socket.off('assign-role', onAssignRole);
+                socket.off('room-created', onRoomCreated);
+                socket.off('joined-as-spectator', onJoinedSpectator);
+                socket.off('game-start', onGameStart);
+                socket.off('game-state-update', onGameStateUpdate);
+                socket.off('game-over-update', onGameOver);
+                socket.close();
+            } catch {}
+            socketRef.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Authenticate socket when user changes
+    useEffect(() => {
+        const s = socketRef.current;
+        if (!s) return;
+        if (user?.id) {
+            try { s.emit('authenticate', user.id); } catch {}
+        }
+    }, [user]);
+
+    // Guard: In online mode, if not in a room, keep game state at 'waiting'
+    useEffect(() => {
+        if (state.gameMode === 'pvo') {
+            const inRoom = !!state.room && typeof state.room === 'string' && state.room.length > 0;
+            if (!inRoom && state.gameState !== 'waiting') {
+                dispatch({ type: 'SET_GAME_STATE', payload: 'waiting' });
+            }
+        }
+    }, [state.gameMode, state.room, state.gameState]);
+
     return { state, dispatch, socketRef };
 };
+
+// Socket initialization and event bindings
+// We attach them after the hook so we keep the reducer above uncluttered.
+// NOTE: We keep all logic inside the hook below via effects.
+
 

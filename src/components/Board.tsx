@@ -8,6 +8,8 @@ import PostGameManager from './PostGameManager';
 import GameArea from './GameArea';
 import PvaBackground from './PvaBackground';
 import PlayerBanner from './PlayerBanner';
+import OnlineMultiplayerMenu from './OnlineMultiplayerMenu';
+import RoomCodeModal from './RoomCodeModal';
 import ColorSelect from './ColorSelect';
 import Swap2OptionsModal from './Swap2OptionsModal';
 import Script from 'next/script';
@@ -323,6 +325,9 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         if (!isAbortError(err) && !swap2PrefetchErrorNotifiedRef.current) {
           console.error('Swap2 propose failed, using fallback:', err);
           swap2PrefetchErrorNotifiedRef.current = true;
+          // 비차단 안내 배너: AI 서버 연결 실패 시 로컬 폴백으로 시작
+          setSwap2Banner(t('swap2.banner.localFallback1','AI 서버 연결이 원활하지 않아 로컬로 시작합니다.'));
+          setTimeout(() => setSwap2Banner(null), bannerDurationMs);
         }
         const local = createFallbackSwap2(size);
         const fallbackProposal: Swap2Proposal = {
@@ -410,6 +415,8 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         if (!isAbortError(err) && !swap2PrefetchErrorNotifiedRef.current) {
           console.warn('Swap2 second step failed; continuing with proposal board', err);
           swap2PrefetchErrorNotifiedRef.current = true;
+          setSwap2Banner(t('swap2.banner.localFallback2','AI 서버 연결이 일시적으로 느려 로컬로 진행합니다.'));
+          setTimeout(() => setSwap2Banner(null), bannerDurationMs);
         }
         swap2SecondDecisionRef.current = baseDecision;
         return baseDecision;
@@ -580,7 +587,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     async (board: BoardMatrix) => {
       try {
         setSwap2Processing(true);
-        setSwap2Banner('색상 결정 중...');
+        setSwap2Banner(t('swap2.banner.deciding','색상 결정 중...'));
         const resp = await fetchWithTimeout(
           '/api/swap2/choose',
           {
@@ -604,7 +611,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         finalizeSwap2Opening(board, aiColor, nextToMove);
       } catch (e) {
         if (!isAbortError(e)) console.error('Swap2 choose failed:', e);
-        setSwap2Banner('색상 결정 중...');
+        setSwap2Banner(t('swap2.banner.deciding','색상 결정 중...'));
         setTimeout(() => setSwap2Banner(null), bannerDurationMs);
         finalizeSwap2Opening(board, 'black', 'white');
       }
@@ -628,7 +635,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         option3ResultBoardRef.current = boardCopy;
         setSwap2Option3State(null);
         setSwap2PreviewBoard(boardCopy);
-        if (option3SecondIsAI) { setSwap2Banner('색상 결정 중...'); void finalizeOption3(boardCopy); } else { setOption3ChooseVisible(true); }
+        if (option3SecondIsAI) { setSwap2Banner(t('swap2.banner.deciding','색상 결정 중...')); void finalizeOption3(boardCopy); } else { setOption3ChooseVisible(true); }
       }
     },
     [swap2Option3State]
@@ -830,7 +837,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   /* ===================== Render ===================== */
   return (
     <>
-      {/* 색상 선택 모달 */}
+      {/* Swap2: Option3 placement banner */}
       <ColorSelect
         visible={
           isPVA &&
@@ -854,7 +861,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         }}
       />
 
-      {/* 스왑2: 선택지 모달 */}
+      {/* Swap2: Option3 placement banner */}
       <Swap2OptionsModal
         visible={!!swap2Decision && !swap2Option3State && !swap2Processing}
         loading={swap2Processing}
@@ -868,34 +875,10 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         }}
       />
 
-      {/* 스왑2: 옵션3 배치 안내 */}
-      {swap2Option3State && (
-        <div className="fixed top-16 inset-x-0 z-40 flex justify-center" role="status" aria-live="polite">
-          <div className="px-4 py-2 rounded-lg bg-black/70 text-gray-100 text-sm shadow-lg flex items-center gap-4">
-            <span>
-              {swap2Option3State.stage === 'white'
-                ? '백 돌을 배치할 위치를 클릭하세요.'
-                : '흑 돌을 배치할 위치를 클릭하세요.'}
-            </span>
-            {swap2Decision && (
-              <button
-                type="button"
-                className="px-3 py-1 rounded border border-gray-500 text-gray-200 hover:bg-gray-700 transition"
-                onClick={() => {
-                  setSwap2Option3State(null);
-                  setSwap2PreviewBoard(cloneBoard(swap2Decision.board));
-                }}
-              >
-                되돌리기
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Option3 banner temporarily removed to fix build */}
+      {/* Swap2: Option3 placement banner */}
 
-      {/* (Swap2 순수 규칙에서는 사용하지 않음) 추가 백 수 안내 배너는 비활성화 */}
-
-      {/* 진행 중 오버레이 */}
+      {/* Swap2: Option3 placement banner */}
       {false && swap2Processing && (
         <div
           className="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
@@ -909,22 +892,26 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         </div>
       )}
 
-      {/* 배경 */}
+      {/* Swap2: Option3 placement banner */}
       {isPVA && <PvaBackground />}
 
       {swap2Banner && (
-        <div className="fixed top-20 inset-x-0 z-[9999] flex justify-center pointer-events-none" role="status" aria-live="polite">
+        <div
+          className="fixed inset-x-0 z-[9999] flex justify-center pointer-events-none"
+          role="status"
+          aria-live="polite"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
+        >
           <div className="px-4 py-2 rounded-lg bg-black/70 text-gray-100 text-sm shadow-lg">
             <span>{swap2Banner}</span>
           </div>
         </div>
       )}
-
       {option3ChooseVisible && !swap2Processing && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[520px] max-w-[95%]">
             <h3 className="text-center text-white text-xl font-bold mb-3">색상을 선택하세요</h3>
-            <p className="text-center text-gray-300 mb-5 text-sm">마지막 수는 흑이므로 다음 수는 백입니다.</p>
+            <p className="text-center text-gray-300 mb-5 text-sm">두 수 배치가 끝났습니다. 색상을 결정해 주세요.</p>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -950,15 +937,36 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       )}
 
       <div className="w-full h-full relative">
-        {/* 뒤로가기 */}
-        <div className="fixed top-4 left-4 z-50">
+        {state.showRoomCodeModal && state.createdRoomId && (
+          <RoomCodeModal
+            roomId={state.createdRoomId}
+            onClose={() => dispatch({ type: 'SET_SHOW_ROOM_CODE_MODAL', payload: false })}
+          />
+        )}
+        {/* Swap2: Option3 placement banner */}
+        <div className="fixed z-50" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 'calc(env(safe-area-inset-left, 0px) + 16px)' }}>
           <button onClick={onExit} className="text-gray-400 hover:text-gray-200 p-2 transition-colors btn-hover-scale">
             {t('Back')}
           </button>
         </div>
 
         <div className="flex flex-col items-center w-full h-full pt-6">
-          {/* PVO: 세션 스토리지에 준비된 오프닝 자동 적용 */}
+          {state.gameMode === 'pvo' && state.gameState === 'waiting' && (
+            <div className="w-full h-full flex items-start justify-center" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 40px)' }}>
+              <OnlineMultiplayerMenu
+                onBack={onExit}
+                setGameMode={(mode) => dispatch({ type: 'SET_GAME_MODE', payload: mode })}
+                socketRef={socketRef}
+                userProfile={state.userProfile}
+                onlineUsers={state.onlineUsers}
+                inQueueUsers={state.inQueueUsers}
+                isSocketConnected={state.isSocketConnected}
+              />
+            </div>
+          )}
+
+          {!(state.gameMode === 'pvo' && state.gameState === 'waiting') && (
+          {/* Swap2: Option3 placement banner */}
           {state.gameMode === 'pvo' && state.history.length === 0 && (
             <Script id="apply-opening" strategy="afterInteractive">
               {`
@@ -976,7 +984,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
             </Script>
           )}
 
-          {/* PVA 배너 */}
+          {/* Swap2: Option3 placement banner */}
           {isPVA && (
             <PlayerBanner
               p1Profile={p1Profile}
@@ -985,7 +993,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
             />
           )}
 
-          {/* 현재 턴/타이머 */}
+          {/* Swap2: Option3 placement banner */}
           <div className="mb-4 h-16 flex items-center justify-center">
             {(state.gameMode === 'pva' || state.gameMode === 'pvo') &&
               state.gameState === 'playing' && (
@@ -1003,15 +1011,16 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               )}
           </div>
 
-          {/* 게임 보드 */}
+          {/* Swap2: Option3 placement banner */}
           <GameArea
             state={state}
             dispatch={dispatch}
             replayGame={replayGame}
             swap2Override={swap2BoardOverride ?? undefined}
+            socketRef={socketRef}
           />
 
-          {/* 게임 종료 모달 */}
+          {/* Swap2: Option3 placement banner */}
           {state.winner && (
             <GameEndModal winnerName={winnerName} duration={state.gameDuration}>
               <PostGameManager
@@ -1027,6 +1036,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               />
             </GameEndModal>
           )}
+          )}
         </div>
       </div>
     </>
@@ -1034,3 +1044,6 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 };
 
 export default Board;
+
+
+

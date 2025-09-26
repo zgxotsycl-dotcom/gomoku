@@ -20,7 +20,7 @@ describe('ColorSelect', () => {
       />
     );
 
-    const option3Button = screen.getByRole('button', { name: /추가 두 수 배치/ });
+    const option3Button = screen.getByRole('button', { name: /추가 백 2수 배치/ });
     fireEvent.click(option3Button);
 
     expect(onRequestOption3).toHaveBeenCalledTimes(1);
@@ -39,6 +39,7 @@ describe('ColorSelect', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: /추가 두 수 배치/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /추가 백 2수 배치/ })).not.toBeInTheDocument();
   });
 });
+

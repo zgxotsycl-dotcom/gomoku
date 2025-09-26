@@ -183,6 +183,70 @@ describe('Board Swap2 flow', () => {
     vi.unstubAllGlobals();
   });
 
+  it('Option3 choose fallback: when /choose fails, applies fallback and next to move is white', async () => {
+    const fetchMock = vi.fn((input: RequestInfo) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.includes('/api/swap2/propose')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white' }) } as Response);
+      }
+      if (url.includes('/api/swap2/second')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white', swapColors: false, pendingWhiteExtra: true }) } as Response);
+      }
+      if (url.includes('/api/swap2/choose')) {
+        return Promise.resolve({ ok: false, status: 500 } as unknown as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const orig = Math.random;
+    (Math as any).random = () => 0.1; // force black (auto)
+    renderBoard();
+
+    await waitFor(() => { expect(swap2OverrideRef.current).toBeTruthy(); });
+    await act(async () => { swap2OverrideRef.current.onClick(6, 6); });
+    await act(async () => { swap2OverrideRef.current.onClick(6, 7); });
+
+    await screen.findByLabelText(/White to play/i);
+
+    ;(Math as any).random = orig;
+    vi.unstubAllGlobals();
+  });
+
+  it('Rematch with rematchSwap2Pending auto-applies opening without user modal', async () => {
+    // Override useGomoku to set rematchSwap2Pending=true
+    vi.doMock('../lib/hooks/useGomoku', () => ({
+      useGomoku: () => ({
+        state: { ...baseState, rematchSwap2Pending: true },
+        dispatch: mockDispatch,
+        socketRef: { current: null },
+      })
+    }));
+
+    const fetchMock = vi.fn((input: RequestInfo) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.includes('/api/swap2/propose')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white' }) } as Response);
+      }
+      if (url.includes('/api/swap2/second')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white', swapColors: false }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const orig = Math.random;
+    (Math as any).random = () => 0.4; // random branch would pick black, but rematch overrides
+    const { default: Board2 } = await import('../Board');
+    render(<Board2 initialGameMode="pva" onExit={() => undefined} />);
+
+    await screen.findByLabelText(/White to play/i);
+
+    ;(Math as any).random = orig;
+    vi.resetModules();
+    vi.unstubAllGlobals();
+  });
+
   it('Second returns swapColors=true with missing toMove -> defaults to white to play', async () => {
     // In this case, user random-picks black, server tells to swap colors without specifying toMove.
     const fetchMock = vi.fn((input: RequestInfo) => {

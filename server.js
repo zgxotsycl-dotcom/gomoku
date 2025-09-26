@@ -12,11 +12,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = (process.env.SOCKET_CORS_ORIGINS || '').split(',').filter(Boolean);
 const io = new Server(server, {
   path: "/socket.io/",
   cors: {
-    origin: ["http://localhost:3000", "https://www.omokk.com", /\.vercel\.app$/],
-    methods: ["GET", "POST"]
+    origin: allowedOrigins.length ? allowedOrigins : ["http://localhost:3000", /https?:\/\/.*\.vercel\.app$/],
+    methods: ["GET", "POST"],
+    credentials: true,
   }
 });
 
@@ -203,6 +205,15 @@ io.on('connection', (socket) => {
           if (error) console.error('Error creating active game:', error);
         });
       }
+      broadcastUserCounts();
+    }
+  });
+
+  socket.on('leave-public-queue', () => {
+    const idx = publicMatchmakingQueue.findIndex(p => p.socketId === socket.id);
+    if (idx !== -1) {
+      publicMatchmakingQueue.splice(idx, 1);
+      console.log(`User ${socket.id} left the public queue.`);
       broadcastUserCounts();
     }
   });

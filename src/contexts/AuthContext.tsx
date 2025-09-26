@@ -1,6 +1,18 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { languages } from '@/i18n/settings';
+
+function normalizeLng(input: unknown): string | null {
+  if (!input) return null;
+  try {
+    const s = String(input).toLowerCase();
+    const base = s.split(/[-_]/)[0];
+    return base;
+  } catch {
+    return null;
+  }
+}
 import { supabase } from '@/lib/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
@@ -39,6 +51,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (session?.user) {
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
             setProfile(profileData as Profile);
+            try {
+              const raw = (profileData as any)?.locale || (profileData as any)?.language || (profileData as any)?.preferred_language || localStorage.getItem('preferredLng');
+              const pref = normalizeLng(raw);
+              if (pref && languages.includes(pref)) {
+                const maxAge = 60 * 60 * 24 * 365;
+                document.cookie = `i18next=${pref}; Max-Age=${maxAge}; Path=/`;
+                localStorage.setItem('preferredLng', pref);
+              }
+            } catch {}
         }
       } catch (error) {
         console.error("Error in getInitialSession:", error);
@@ -55,6 +76,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (session?.user) {
             supabase.from('profiles').select('*').eq('id', session.user.id).single().then(response => {
                 setProfile(response.data as Profile);
+                try {
+                  const raw = (response.data as any)?.locale || (response.data as any)?.language || (response.data as any)?.preferred_language || localStorage.getItem('preferredLng');
+                  const pref = normalizeLng(raw);
+                  if (pref && languages.includes(pref)) {
+                    const maxAge = 60 * 60 * 24 * 365;
+                    document.cookie = `i18next=${pref}; Max-Age=${maxAge}; Path=/`;
+                    localStorage.setItem('preferredLng', pref);
+                  }
+                } catch {}
             });
         } else {
             setProfile(null);

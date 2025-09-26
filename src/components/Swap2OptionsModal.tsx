@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Swap2OptionsModalProps {
   visible: boolean;
@@ -13,14 +14,13 @@ interface Swap2OptionsModalProps {
 
 export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwapToBlack, onForceFirstChoice, onCancel }: Swap2OptionsModalProps) {
   if (!visible) return null;
+  const { t } = useTranslation();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="animate-slime-in bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[720px] max-w-[96%] relative">
-        <h3 className="text-center text-white text-2xl font-bold mb-3">Swap2 선택</h3>
-        <p className="text-center text-gray-300 mb-6 text-sm">
-          제안된 오프닝 포지션에서 다음 중 하나를 선택하세요.
-        </p>
+        <h3 className="text-center text-white text-2xl font-bold mb-3">{t('swap2.options.title', 'Swap2 선택')}</h3>
+        <p className="text-center text-gray-300 mb-6 text-sm">{t('swap2.options.subtitle', '아래에서 한 가지를 선택하세요.')}</p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button type="button"
@@ -30,8 +30,8 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
           >
             <div className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.2),transparent_55%)]" />
             <div className="flex flex-col items-start gap-2 text-left">
-              <span className="text-white font-bold text-lg">Option 1 — 백 유지</span>
-              <span className="text-gray-300 text-sm">색을 바꾸지 않고 그대로 백으로 진행합니다.</span>
+              <span className="text-white font-bold text-lg">{t('swap2.options.opt1', 'Option 1 • 백 유지')}</span>
+              <span className="text-gray-300 text-sm">{t('swap2.options.opt1.desc', '색상을 바꾸지 않고 그대로 시작합니다.')}</span>
             </div>
           </button>
 
@@ -42,8 +42,8 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
           >
             <div className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,255,0.2),transparent_55%)]" />
             <div className="flex flex-col items-start gap-2 text-left">
-              <span className="text-white font-bold text-lg">Option 2 — 흑으로 교체</span>
-              <span className="text-gray-300 text-sm">색을 바꾸고 흑으로 진행합니다.</span>
+              <span className="text-white font-bold text-lg">{t('swap2.options.opt2', 'Option 2 • 색상 교체')}</span>
+              <span className="text-gray-300 text-sm">{t('swap2.options.opt2.desc', '색상을 바꾸고 흑으로 시작합니다. (다음 수는 백)')}</span>
             </div>
           </button>
 
@@ -54,8 +54,8 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
           >
             <div className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.2),transparent_55%)]" />
             <div className="flex flex-col items-start gap-2 text-left">
-              <span className="text-white font-bold text-lg">Option 3 — 추가 두 수 배치</span>
-              <span className="text-gray-300 text-sm">백과 흑 한 수씩 배치한 후 상대가 색을 선택하도록 강제합니다.</span>
+              <span className="text-white font-bold text-lg">{t('swap2.options.opt3', 'Option 3 • 추가 백 2수 배치')}</span>
+              <span className="text-gray-300 text-sm">{t('swap2.options.opt3.desc', '백 1수, 흑 1수를 더 둔 뒤 두 번째 선수가 색상을 선택합니다.')}</span>
             </div>
           </button>
         </div>
@@ -66,7 +66,7 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
             onClick={onCancel}
             className="mt-6 w-full py-2 rounded-lg border border-gray-600 text-gray-300 hover:text-white hover:border-gray-400 transition disabled:opacity-50"
           >
-            취소
+            {t('Cancel', '취소')}
           </button>
         )}
       </div>
