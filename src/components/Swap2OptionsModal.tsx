@@ -19,7 +19,7 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
       <div className="animate-slime-in bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[720px] max-w-[96%] relative">
         <h3 className="text-center text-white text-2xl font-bold mb-3">Swap2 선택</h3>
         <p className="text-center text-gray-300 mb-6 text-sm">
-          4수까지 진행된 현재 보드에서 다음 중 하나를 선택하세요.
+          제안된 오프닝 포지션에서 다음 중 하나를 선택하세요.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

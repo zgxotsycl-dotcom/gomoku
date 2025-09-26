@@ -6,7 +6,9 @@ const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_B
 const AI_TIMEOUT_MS = Number(process.env.SWAP2_SERVER_TIMEOUT_MS || 2000);
 
 async function fetchAi(url: string, body: unknown) {
-  if (!url.startsWith('http')) return null;
+  if (!url || !url.startsWith('http') || /localhost|127\.0\.0\.1|0\.0\.0\.0|::1/.test(url)) {
+    return null;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
   try {

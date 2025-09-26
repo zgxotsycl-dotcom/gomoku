@@ -699,7 +699,8 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (state.rematchSwap2Pending) return;
     if (state.showColorSelect) return;
     if (swap2Decision || swap2Option3State || swap2Processing) return;
-    dispatch({ type: 'SHOW_COLOR_SELECT' });
+    // 자동 시작 모드에서는 선택창을 열지 않습니다.
+    // dispatch({ type: 'SHOW_COLOR_SELECT' });
   }, [
     isPVA,
     state.difficulty,
@@ -712,6 +713,33 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     swap2Option3State,
     swap2Processing,
     dispatch,
+  ]);
+
+  // Auto-start: 랜덤 색상으로 즉시 시작 (초기 진입 1회)
+  const autoRandomStartedRef = useRef(false);
+  useEffect(() => {
+    if (!isPVA) return;
+    if (state.difficulty !== 'normal') return;
+    if (!isOpeningWaiting) return;
+    if (loadingOverlayActive) return;
+    if (!swap2SecondReady) return;
+    if (state.rematchSwap2Pending) return;
+    if (autoRandomStartedRef.current) return;
+
+    autoRandomStartedRef.current = true;
+    const randomColor: PlayerChoice = Math.random() < 0.5 ? 'black' : 'white';
+    // 규칙상 백(후수)을 받은 경우에는 Swap2 색상 변경(스왑/옵션3) 기회를 보여줘야 하므로
+    // auto=false로 전달해 옵션 모달을 표시합니다. 흑(선수)은 즉시 적용(auto=true).
+    const auto = randomColor === 'black';
+    void onChooseColor(randomColor, auto);
+  }, [
+    isPVA,
+    state.difficulty,
+    isOpeningWaiting,
+    loadingOverlayActive,
+    swap2SecondReady,
+    state.rematchSwap2Pending,
+    onChooseColor,
   ]);
 
   /* ========== 리매치: 기존 인간 색상 유지해서 자동 선택 ========== */
@@ -813,7 +841,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       )}
 
       {/* 진행 중 오버레이 */}
-      {swap2Processing && (
+      {false && swap2Processing && (
         <div
           className="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
           role="status"
