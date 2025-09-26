@@ -21,6 +21,10 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [bannerColor, setBannerColor] = useState('#4A5568');
   const [loading, setLoading] = useState(false);
   const [usernameError, setUsernameError] = useState('');
+  // Local-only game settings
+  const [randomStart, setRandomStart] = useState<boolean>(true);
+  const [colorSelectTimeout, setColorSelectTimeout] = useState<number>(7000);
+  const [bannerDuration, setBannerDuration] = useState<number>(3000);
 
     const validateUsername = useCallback((name: string) => {
     if (name.length < 3) {
@@ -69,6 +73,15 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
       };
       fetchProfile();
     }
+    // Load local game settings when modal opens
+    try {
+      const rs = localStorage.getItem('swap2RandomStart');
+      setRandomStart(rs === null ? true : rs !== 'false');
+      const ct = localStorage.getItem('colorSelectTimeoutMs');
+      setColorSelectTimeout(ct ? Number(ct) : Number(process.env.NEXT_PUBLIC_COLOR_SELECT_TIMEOUT_MS ?? 7000));
+      const bm = localStorage.getItem('swap2BannerMs');
+      setBannerDuration(bm ? Number(bm) : Number(process.env.NEXT_PUBLIC_SWAP2_BANNER_MS ?? 3000));
+    } catch {}
   }, [user, isOpen, profile, validateUsername]);
 
   const handleSave = async () => {
@@ -108,6 +121,20 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     if (error) {
       toast.error(t('FailedToSaveSettings') + ': ' + error.message);
     } else if (data) {
+      // Persist local game settings
+      try {
+        localStorage.setItem('swap2RandomStart', String(randomStart));
+        localStorage.setItem('colorSelectTimeoutMs', String(colorSelectTimeout));
+        localStorage.setItem('swap2BannerMs', String(bannerDuration));
+        // Notify live pages
+        window.dispatchEvent(new CustomEvent('settings-changed', {
+          detail: {
+            randomStart,
+            colorSelectTimeoutMs: Number(colorSelectTimeout),
+            swap2BannerMs: Number(bannerDuration),
+          },
+        }));
+      } catch {}
       toast.success(t('SettingsSaved'));
       updateProfile(data);
       onClose();
@@ -135,6 +162,42 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
               placeholder={t('EnterYourNickname', 'Enter your nickname')}
             />
             {usernameError && <p className="text-red-500 text-xs mt-1">{usernameError}</p>}
+          </div>
+
+          {/* Game Settings */}
+          <div className="mt-4 border-t border-gray-700 pt-4">
+            <h3 className="text-white font-semibold mb-3">게임 설정</h3>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-gray-300">Swap2 시작 방식 (랜덤 시작)</label>
+              <input
+                type="checkbox"
+                checked={randomStart}
+                onChange={(e) => setRandomStart(e.target.checked)}
+                className="w-5 h-5"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <label className="text-gray-300 self-center">색상 선택 제한시간(ms)</label>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={colorSelectTimeout}
+                onChange={(e) => setColorSelectTimeout(Number(e.target.value))}
+                className="px-2 py-1 rounded bg-gray-700 text-white border border-gray-600"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-gray-300 self-center">배너 표시시간(ms)</label>
+              <input
+                type="number"
+                min={500}
+                step={100}
+                value={bannerDuration}
+                onChange={(e) => setBannerDuration(Number(e.target.value))}
+                className="px-2 py-1 rounded bg-gray-700 text-white border border-gray-600"
+              />
+            </div>
           </div>
           
           <div className={!profile?.is_supporter ? 'locked-feature' : ''}>

@@ -167,8 +167,14 @@ const fetchWithTimeout = async (input: RequestInfo, init: RequestInit = {}, time
 };
 
 const SWAP2_SECOND_TIMEOUT_MS = 2500;
-// Swap2 시작 방식 토글: true=랜덤 시작, false=표준(두 번째 선수 선택)
-const RANDOM_START = (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_SWAP2_RANDOM_START ?? 'true')) !== 'false';
+// 런타임 기본값(환경변수)
+const RANDOM_START_DEFAULT = (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_SWAP2_RANDOM_START ?? 'true')) !== 'false';
+const COLOR_SELECT_TIMEOUT_DEFAULT = Number(
+  (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_COLOR_SELECT_TIMEOUT_MS ?? '7000')) || '7000'
+);
+const BANNER_DURATION_DEFAULT = Number(
+  (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_SWAP2_BANNER_MS ?? '3000')) || '3000'
+);
 
 /* ===================== Component ===================== */
 const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = null, loadingOverlayActive = false }: BoardProps) => {
@@ -189,6 +195,10 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   const swap2SecondDecisionRef = useRef<Swap2SecondDecision | null>(null);
   const swap2SecondPromiseRef = useRef<Promise<Swap2SecondDecision> | null>(null);
   const swap2PrefetchErrorNotifiedRef = useRef(false);
+  // 설정(로컬스토리지/설정창) 기반 런타임 제어값
+  const [randomStart, setRandomStart] = useState<boolean>(RANDOM_START_DEFAULT);
+  const [colorSelectTimeoutMs, setColorSelectTimeoutMs] = useState<number>(COLOR_SELECT_TIMEOUT_DEFAULT);
+  const [bannerDurationMs, setBannerDurationMs] = useState<number>(BANNER_DURATION_DEFAULT);
 
   const isPVA = state.gameMode === 'pva';
   const isOpeningWaiting = state.history.length === 0 && state.gameState === 'waiting';
@@ -227,6 +237,27 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       p2Profile: humanPlayerIsBlack ? aiProfile : humanProfile,
     };
   }, [isPVA, state.userProfile, currentHumanColor]);
+
+  // 설정 초기 로드 및 변경 이벤트 수신
+  useEffect(() => {
+    if (!isBrowser) return;
+    try {
+      const rs = localStorage.getItem('swap2RandomStart');
+      if (rs !== null) setRandomStart(rs !== 'false');
+      const ct = localStorage.getItem('colorSelectTimeoutMs');
+      if (ct && !Number.isNaN(Number(ct))) setColorSelectTimeoutMs(Number(ct));
+      const bm = localStorage.getItem('swap2BannerMs');
+      if (bm && !Number.isNaN(Number(bm))) setBannerDurationMs(Number(bm));
+    } catch {}
+    const onSettingsChanged = (e: Event) => {
+      const d = (e as CustomEvent<any>)?.detail || {};
+      if (typeof d.randomStart === 'boolean') setRandomStart(d.randomStart);
+      if (typeof d.colorSelectTimeoutMs === 'number') setColorSelectTimeoutMs(d.colorSelectTimeoutMs);
+      if (typeof d.swap2BannerMs === 'number') setBannerDurationMs(d.swap2BannerMs);
+    };
+    window.addEventListener('settings-changed', onSettingsChanged as EventListener);
+    return () => window.removeEventListener('settings-changed', onSettingsChanged as EventListener);
+  }, []);
 
   /** 스왑2 최종 적용 */
   const finalizeSwap2Opening = useCallback(
@@ -432,7 +463,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               setOption3SecondIsAI(true);
               setSwap2Option3State({ board: base, stage: 'white' });
               setSwap2Banner('AI가 두 수 더를 요청했습니다. 백 1수 → 흑 1수를 두어주세요.');
-              setTimeout(() => setSwap2Banner(null), 3000);
+              setTimeout(() => setSwap2Banner(null), bannerDurationMs);
               return;
             } else {
               finalizeSwap2Opening(
@@ -569,12 +600,12 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         // Option3 마지막 수는 흑이므로, 다음 수는 백입니다.
         const nextToMove: Player = 'white';
         setSwap2Banner(`AI가 ${aiColor === 'black' ? '흑' : '백'}을 선택했습니다`);
-        setTimeout(() => setSwap2Banner(null), 3000);
+        setTimeout(() => setSwap2Banner(null), bannerDurationMs);
         finalizeSwap2Opening(board, aiColor, nextToMove);
       } catch (e) {
         if (!isAbortError(e)) console.error('Swap2 choose failed:', e);
         setSwap2Banner('색상 결정 중...');
-        setTimeout(() => setSwap2Banner(null), 3000);
+        setTimeout(() => setSwap2Banner(null), bannerDurationMs);
         finalizeSwap2Opening(board, 'black', 'white');
       }
     },
@@ -730,7 +761,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (state.showColorSelect) return;
     if (swap2Decision || swap2Option3State || swap2Processing) return;
     // 자동 시작 모드에서는 선택창을 열지 않습니다.
-    if (!RANDOM_START) dispatch({ type: 'SHOW_COLOR_SELECT' });
+    if (!randomStart) dispatch({ type: 'SHOW_COLOR_SELECT' });
   }, [
     isPVA,
     state.difficulty,
@@ -756,7 +787,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (state.rematchSwap2Pending) return;
     if (autoRandomStartedRef.current) return;
 
-    if (!RANDOM_START) return;
+    if (!randomStart) return;
     autoRandomStartedRef.current = true;
     const randomColor: PlayerChoice = Math.random() < 0.5 ? 'black' : 'white';
     // 규칙상 백(후수)을 받은 경우에는 Swap2 색상 변경(스왑/옵션3) 기회를 보여줘야 하므로
@@ -816,7 +847,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         onRequestOption3={() => {
           void handleColorSelectOption3();
         }}
-        timeoutMs={7000}
+        timeoutMs={colorSelectTimeoutMs}
         onTimeout={() => {
           const fallback: PlayerChoice = currentHumanColor;
           void onChooseColor(fallback, true);
