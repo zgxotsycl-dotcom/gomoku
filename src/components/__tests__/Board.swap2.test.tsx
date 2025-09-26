@@ -5,9 +5,7 @@ import Board from '../Board';
 import { vi } from 'vitest';
 
 const BOARD_SIZE = 15;
-
 const makeEmptyBoard = () => Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
-
 const proposeBoard = (() => {
   const board = makeEmptyBoard();
   const mid = Math.floor(BOARD_SIZE / 2);
@@ -18,7 +16,6 @@ const proposeBoard = (() => {
 })();
 
 const swap2OverrideRef: { current: any } = { current: null };
-
 const mockDispatch = vi.fn();
 
 vi.mock('../GameArea', () => ({
@@ -27,13 +24,11 @@ vi.mock('../GameArea', () => ({
     return <div data-testid="game-area" />;
   },
 }));
-
 vi.mock('../GameEndModal', () => ({ default: ({ children }: any) => <div data-testid="game-end-modal">{children}</div> }));
 vi.mock('../PostGameManager', () => ({ default: () => <div data-testid="post-game-manager" /> }));
 vi.mock('../PvaBackground', () => ({ default: () => <div data-testid="pva-bg" /> }));
 vi.mock('../PlayerBanner', () => ({ default: () => <div data-testid="player-banner" /> }));
 vi.mock('next/script', () => ({ default: () => null }));
-
 vi.mock('@/lib/supabaseClient', () => ({ supabase: {} }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: null, profile: null }) }));
 
@@ -43,7 +38,7 @@ const baseState = {
   forbiddenMoves: [],
   history: [] as any[],
   gameState: 'waiting' as const,
-  showColorSelect: true,
+  showColorSelect: false,
   difficulty: 'normal' as const,
   pendingOpening: 'none' as const,
   rematchSwap2Pending: false,
@@ -82,27 +77,15 @@ describe('Board Swap2 flow', () => {
     const fetchMock = vi.fn((input: RequestInfo) => {
       const url = typeof input === 'string' ? input : input.url;
       if (url.includes('/api/swap2/propose')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ board: proposeBoard, toMove: 'white' }),
-        } as Response);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white' }) } as Response);
       }
       if (url.includes('/api/swap2/second')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ board: proposeBoard, toMove: 'black', swapColors: false }),
-        } as Response);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'black', swapColors: false }) } as Response);
       }
-      if (url.includes('/api/swap2/choose')) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ aiColor: 'white' }),
-        } as Response);
+      if (url.includes('/api/get-move')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ move: [7, 7] }) } as Response);
       }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-      } as Response);
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
     });
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -111,63 +94,117 @@ describe('Board Swap2 flow', () => {
     vi.unstubAllGlobals();
   });
 
-  const renderBoard = () =>
-    render(
-      <Board
-        initialGameMode="pva"
-        onExit={() => undefined}
-      />
-    );
+  const renderBoard = () => render(<Board initialGameMode="pva" onExit={() => undefined} />);
 
-  it('shows Swap2 options after choosing white', async () => {
+  it('auto-opens Swap2 options when random selects white', async () => {
+    const orig = Math.random;
+    (Math as any).random = () => 0.9; // force white
     renderBoard();
-
-    const whiteButton = await screen.findByRole('button', { name: '백돌을 선택' });
-    fireEvent.click(whiteButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Swap2 선택')).toBeInTheDocument();
-    });
+    await screen.findByRole('button', { name: /Option 3/i });
+    ;(Math as any).random = orig;
   });
 
-  it('allows requesting Option3 before placing stones', async () => {
+  it('allows requesting Option3 and shows placement override', async () => {
+    const orig = Math.random;
+    (Math as any).random = () => 0.9;
     renderBoard();
-
-    const option3Button = await screen.findByRole('button', { name: /추가 두 수 배치/ });
+    const option3Button = await screen.findByRole('button', { name: /Option 3/i });
     fireEvent.click(option3Button);
-
-    await waitFor(() => {
-      expect(screen.getByText('백 돌을 배치할 위치를 클릭하세요.')).toBeInTheDocument();
-    });
-
+    await waitFor(() => { expect(swap2OverrideRef.current).toBeTruthy(); });
+    ;(Math as any).random = orig;
   });
 
-  it('completes Option3 flow and applies opening', async () => {
+  it('Option3 -> choose White: applies ai=black, toMove=white', async () => {
+    const orig = Math.random;
+    (Math as any).random = () => 0.9;
     renderBoard();
 
-    const option3Button = await screen.findByRole('button', { name: /추가 두 수 배치/ });
-    fireEvent.click(option3Button);
+    fireEvent.click(await screen.findByRole('button', { name: /Option 3/i }));
+    await waitFor(() => { expect(swap2OverrideRef.current).toBeTruthy(); });
 
-    await waitFor(() => {
-      expect(screen.getByText('백 돌을 배치할 위치를 클릭하세요.')).toBeInTheDocument();
-      expect(swap2OverrideRef.current).toBeTruthy();
-    });
+    await act(async () => { swap2OverrideRef.current.onClick(6, 6); });
+    await act(async () => { swap2OverrideRef.current.onClick(6, 7); });
 
-    await act(async () => {
-      swap2OverrideRef.current.onClick(6, 6);
-    });
+    const chooseWhite = await screen.findByRole('button', { name: /나는 백\(White\)/ });
+    fireEvent.click(chooseWhite);
 
-    await waitFor(() => {
-      expect(screen.getByText('흑 돌을 배치할 위치를 클릭하세요.')).toBeInTheDocument();
-    });
+    // After choosing White, next to move should be White
+    await screen.findByLabelText(/White to play/i);
+    ;(Math as any).random = orig;
+  });
 
-    await act(async () => {
-      swap2OverrideRef.current.onClick(6, 7);
-    });
+  it('Swap option sets next to move to white (prevent double black)', async () => {
+    const orig = Math.random;
+    (Math as any).random = () => 0.9;
+    renderBoard();
 
-    await waitFor(() => {
-      expect(screen.queryByText('백 돌을 배치할 위치를 클릭하세요.')).not.toBeInTheDocument();
-      expect(screen.queryByText('흑 돌을 배치할 위치를 클릭하세요.')).not.toBeInTheDocument();
+    const swapButton = await screen.findByRole('button', { name: /Option 2/i });
+    fireEvent.click(swapButton);
+
+    await screen.findByLabelText(/White to play/i);
+    ;(Math as any).random = orig;
+  });
+
+  it('AI-second Option3: auto color decision after W→B, next to move is white', async () => {
+    // Mock endpoints so that /second requests extra white and /choose returns aiColor
+    const fetchMock = vi.fn((input: RequestInfo) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.includes('/api/swap2/propose')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white' }) } as Response);
+      }
+      if (url.includes('/api/swap2/second')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ board: proposeBoard, toMove: 'white', swapColors: false, pendingWhiteExtra: true }),
+        } as Response);
+      }
+      if (url.includes('/api/swap2/choose')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ aiColor: 'black' }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
     });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const orig = Math.random;
+    (Math as any).random = () => 0.1; // force black start (auto path)
+    renderBoard();
+
+    // Wait until swap2 override is available (Option3 auto path will be prepared)
+    await waitFor(() => { expect(swap2OverrideRef.current).toBeTruthy(); });
+
+    // Place W then B
+    await act(async () => { swap2OverrideRef.current.onClick(6, 6); });
+    await act(async () => { swap2OverrideRef.current.onClick(6, 7); });
+
+    // Should auto finalize without human modal, and next to move is white
+    await screen.findByLabelText(/White to play/i);
+
+    ;(Math as any).random = orig;
+    vi.unstubAllGlobals();
+  });
+
+  it('Second returns swapColors=true with missing toMove -> defaults to white to play', async () => {
+    // In this case, user random-picks black, server tells to swap colors without specifying toMove.
+    const fetchMock = vi.fn((input: RequestInfo) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.includes('/api/swap2/propose')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, toMove: 'white' }) } as Response);
+      }
+      if (url.includes('/api/swap2/second')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ board: proposeBoard, swapColors: true }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+    });
+    vi.stubGlobal('fetch', fetchMock as any);
+
+    const orig = Math.random;
+    (Math as any).random = () => 0.01; // force black (auto)
+    renderBoard();
+
+    // Should auto finalize, and since swapColors with missing toMove -> next to move must be white
+    await screen.findByLabelText(/White to play/i);
+
+    ;(Math as any).random = orig;
+    vi.unstubAllGlobals();
   });
 });

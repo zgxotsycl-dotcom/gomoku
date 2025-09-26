@@ -167,6 +167,8 @@ const fetchWithTimeout = async (input: RequestInfo, init: RequestInit = {}, time
 };
 
 const SWAP2_SECOND_TIMEOUT_MS = 2500;
+// Swap2 시작 방식 토글: true=랜덤 시작, false=표준(두 번째 선수 선택)
+const RANDOM_START = (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_SWAP2_RANDOM_START ?? 'true')) !== 'false';
 
 /* ===================== Component ===================== */
 const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = null, loadingOverlayActive = false }: BoardProps) => {
@@ -178,6 +180,10 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   const [swap2Option3State, setSwap2Option3State] = useState<Swap2Option3State | null>(null);
   const [swap2Processing, setSwap2Processing] = useState(false);
   const [swap2SecondReady, setSwap2SecondReady] = useState(false);
+  const [swap2Banner, setSwap2Banner] = useState<string | null>(null);
+  const [option3ChooseVisible, setOption3ChooseVisible] = useState(false);
+  const option3ResultBoardRef = useRef<BoardMatrix | null>(null);
+  const [option3SecondIsAI, setOption3SecondIsAI] = useState(false);
   const swap2ProposalRef = useRef<Swap2Proposal | null>(null);
   const swap2ProposalPromiseRef = useRef<Promise<Swap2Proposal> | null>(null);
   const swap2SecondDecisionRef = useRef<Swap2SecondDecision | null>(null);
@@ -345,8 +351,9 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
           if (swapColorsNormalized) {
             aiColor = 'black';
+            // 스왑 후에는 백이 다음 수를 두도록 기본값을 'white'로 설정
             if (!(decision?.toMove === 'black' || decision?.toMove === 'white')) {
-              toMove = 'black';
+              toMove = 'white';
             }
           } else {
             aiColor = 'white';
@@ -417,13 +424,25 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         try {
           const decision = await ensureSwap2SecondDecision();
           if (decision) {
-            finalizeSwap2Opening(
-              cloneBoard(decision.board),
-              decision.aiColor,
-              decision.toMove,
-              decision.pendingWhiteExtra ? { pendingWhiteExtra: true } : undefined
-            );
-            return;
+            if (decision.pendingWhiteExtra) {
+              const base = cloneBoard(decision.board);
+              dispatch({ type: 'HIDE_COLOR_SELECT' });
+              setSwap2Decision({ board: base, toMove: decision.toMove });
+              setSwap2PreviewBoard(base);
+              setOption3SecondIsAI(true);
+              setSwap2Option3State({ board: base, stage: 'white' });
+              setSwap2Banner('AI가 두 수 더를 요청했습니다. 백 1수 → 흑 1수를 두어주세요.');
+              setTimeout(() => setSwap2Banner(null), 3000);
+              return;
+            } else {
+              finalizeSwap2Opening(
+                cloneBoard(decision.board),
+                decision.aiColor,
+                decision.toMove,
+                decision.pendingWhiteExtra ? { pendingWhiteExtra: true } : undefined
+              );
+              return;
+            }
           }
 
           const proposal = await ensureSwap2Proposal();
@@ -484,12 +503,15 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
   const handleSwap2SwapToBlack = useCallback(() => {
     if (!swap2Decision) return;
-    finalizeSwap2Opening(cloneBoard(swap2Decision.board), 'white', 'black');
+    // 스왑 후에는 백(white)이 다음 수를 두도록 toMove를 'white'로 설정하여
+    // 흑이 즉시 한 수 더 두는 현상을 방지합니다.
+    finalizeSwap2Opening(cloneBoard(swap2Decision.board), 'white', 'white');
   }, [swap2Decision, finalizeSwap2Opening]);
 
   const handleSwap2Option3Start = useCallback(() => {
     if (!swap2Decision) return;
     const boardCopy = cloneBoard(swap2Decision.board);
+    setOption3SecondIsAI(false);
     setSwap2Option3State({ board: boardCopy, stage: 'white' });
     setSwap2PreviewBoard(boardCopy);
   }, [swap2Decision]);
@@ -527,6 +549,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     async (board: BoardMatrix) => {
       try {
         setSwap2Processing(true);
+        setSwap2Banner('색상 결정 중...');
         const resp = await fetchWithTimeout(
           '/api/swap2/choose',
           {
@@ -543,11 +566,16 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         } else {
           console.warn('Swap2 choose returned non-OK status', resp.status);
         }
-        const nextToMove: Player = 'black';
+        // Option3 마지막 수는 흑이므로, 다음 수는 백입니다.
+        const nextToMove: Player = 'white';
+        setSwap2Banner(`AI가 ${aiColor === 'black' ? '흑' : '백'}을 선택했습니다`);
+        setTimeout(() => setSwap2Banner(null), 3000);
         finalizeSwap2Opening(board, aiColor, nextToMove);
       } catch (e) {
         if (!isAbortError(e)) console.error('Swap2 choose failed:', e);
-        finalizeSwap2Opening(board, 'black', 'black');
+        setSwap2Banner('색상 결정 중...');
+        setTimeout(() => setSwap2Banner(null), 3000);
+        finalizeSwap2Opening(board, 'black', 'white');
       }
     },
     [finalizeSwap2Opening]
@@ -565,12 +593,14 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         setSwap2PreviewBoard(boardCopy);
       } else if (swap2Option3State.stage === 'black') {
         boardCopy[row][col] = 'black';
+        // 두 수 배치 완료: 규칙상 두 번째 선수가 색을 선택
+        option3ResultBoardRef.current = boardCopy;
         setSwap2Option3State(null);
         setSwap2PreviewBoard(boardCopy);
-        void finalizeOption3(boardCopy);
+        if (option3SecondIsAI) { setSwap2Banner('색상 결정 중...'); void finalizeOption3(boardCopy); } else { setOption3ChooseVisible(true); }
       }
     },
-    [swap2Option3State, finalizeOption3]
+    [swap2Option3State]
   );
 
   const swap2BoardOverride = useMemo(() => {
@@ -700,7 +730,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (state.showColorSelect) return;
     if (swap2Decision || swap2Option3State || swap2Processing) return;
     // 자동 시작 모드에서는 선택창을 열지 않습니다.
-    // dispatch({ type: 'SHOW_COLOR_SELECT' });
+    if (!RANDOM_START) dispatch({ type: 'SHOW_COLOR_SELECT' });
   }, [
     isPVA,
     state.difficulty,
@@ -726,6 +756,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (state.rematchSwap2Pending) return;
     if (autoRandomStartedRef.current) return;
 
+    if (!RANDOM_START) return;
     autoRandomStartedRef.current = true;
     const randomColor: PlayerChoice = Math.random() < 0.5 ? 'black' : 'white';
     // 규칙상 백(후수)을 받은 경우에는 Swap2 색상 변경(스왑/옵션3) 기회를 보여줘야 하므로
@@ -831,14 +862,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         </div>
       )}
 
-      {/* 추가 백 수 안내 */}
-      {extraWhitePending && !swap2Option3State && (
-        <div className="fixed top-16 inset-x-0 z-40 flex justify-center pointer-events-none" role="status" aria-live="polite">
-          <div className="px-4 py-2 rounded-lg bg-black/70 text-gray-100 text-sm shadow-lg">
-            <span>AI가 추가 백 수 배치를 요청했습니다. 남은 백 돌 {extraWhitePlacementsLeft}개를 더 놓아주세요.</span>
-          </div>
-        </div>
-      )}
+      {/* (Swap2 순수 규칙에서는 사용하지 않음) 추가 백 수 안내 배너는 비활성화 */}
 
       {/* 진행 중 오버레이 */}
       {false && swap2Processing && (
@@ -856,6 +880,43 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
       {/* 배경 */}
       {isPVA && <PvaBackground />}
+
+      {swap2Banner && (
+        <div className="fixed top-20 inset-x-0 z-[9999] flex justify-center pointer-events-none" role="status" aria-live="polite">
+          <div className="px-4 py-2 rounded-lg bg-black/70 text-gray-100 text-sm shadow-lg">
+            <span>{swap2Banner}</span>
+          </div>
+        </div>
+      )}
+
+      {option3ChooseVisible && !swap2Processing && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[520px] max-w-[95%]">
+            <h3 className="text-center text-white text-xl font-bold mb-3">색상을 선택하세요</h3>
+            <p className="text-center text-gray-300 mb-5 text-sm">마지막 수는 흑이므로 다음 수는 백입니다.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 btn-hover-scale"
+                onClick={() => {
+                  const board = option3ResultBoardRef.current; if (!board) return;
+                  setOption3ChooseVisible(false);
+                  finalizeSwap2Opening(board, 'black', 'white');
+                }}
+              >나는 백(White)</button>
+              <button
+                type="button"
+                className="px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 btn-hover-scale"
+                onClick={() => {
+                  const board = option3ResultBoardRef.current; if (!board) return;
+                  setOption3ChooseVisible(false);
+                  finalizeSwap2Opening(board, 'white', 'white');
+                }}
+              >나는 흑(Black)</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="w-full h-full relative">
         {/* 뒤로가기 */}
