@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { toastOnce } from '@/lib/toastOnce';
 import type { Socket } from 'socket.io-client';
 import type { GameMode, Profile } from '../types';
 
@@ -24,12 +25,12 @@ const OnlineMultiplayerMenu = ({ onBack, setGameMode, socketRef, userProfile, on
 
     const handlePublicMatch = () => { 
         socketRef.current?.emit('join-public-queue', userProfile);
-        toast.success(t('SearchingForPublicMatch', 'Searching for a match...'));
+        toastOnce('queue_search', () => toast.success(t('SearchingForPublicMatch', 'Searching for a match...')));
         setIsQueuing(true);
     };
     const handleCancelMatchmaking = () => {
         socketRef.current?.emit('leave-public-queue');
-        toast.error(t('MatchmakingCancelled', 'Matchmaking cancelled.'));
+        toastOnce('queue_cancelled', () => toast.error(t('MatchmakingCancelled', 'Matchmaking cancelled.')));
         setIsQueuing(false);
     };
     const handleCreatePrivate = () => { socketRef.current?.emit('create-private-room', userProfile); };

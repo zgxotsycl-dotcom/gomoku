@@ -21,6 +21,7 @@ import Ranking from '@/components/Ranking'; // WebGL 불가 시 폴백
 import DifficultySelect from '@/components/DifficultySelect';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
+import { toastOnce } from '@/lib/toastOnce';
 
 /* ------------------------------- 상단 계정 정보 ------------------------------- */
 const AccountInfo = ({ onOpenSettings, onOpenBenefits }: { onOpenSettings: () => void, onOpenBenefits: () => void }) => {
@@ -448,7 +449,8 @@ export default function Home() {
     socket.on('disconnect', () => setIsSocketConnected(false));
     socket.on('connect_error', (err) => {
       console.warn('Socket connect_error:', err?.message || err);
-      toast.error('온라인 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.');
+      const allowToasts = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SOCKET_TOASTS === 'true';
+      if (allowToasts) { toastOnce('socket_connect_error', () => toast.error('온라인 서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.')); }
     });
     socket.on('user-counts-update', ({ onlineUsers, inQueueUsers }) => {
       setOnlineUsers(onlineUsers);
@@ -472,7 +474,8 @@ export default function Home() {
     // If not connected within 5s, inform user
     const t = window.setTimeout(() => {
       if (!socket.connected) {
-        toast.error('온라인 서버 응답이 없습니다. 온라인 대전을 비활성화합니다.');
+        const allowToasts = process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_SOCKET_TOASTS === 'true';
+        if (allowToasts) { toastOnce('socket_connect_timeout', () => toast.error('온라인 기능을 사용할 수 없습니다. 네트워크를 확인해주세요.')); }
         setIsSocketConnected(false);
       }
     }, 5000);
@@ -640,7 +643,7 @@ export default function Home() {
               {profile?.is_supporter && (
               <div className="mt-3 md:mt-4">
                 <button
-                  onClick={() => toast(t('coming_soon'))}
+                  onClick={() => toastOnce('coming_soon', () => toast(t('coming_soon')))}
                   className="px-5 py-2.5 md:px-8 md:py-4 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-600 transition-colors text-base md:text-xl btn-hover-scale"
                 >
                   {t('Tournaments')}
@@ -805,4 +808,5 @@ export default function Home() {
     </div>
   );
 }
+
 

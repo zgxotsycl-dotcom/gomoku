@@ -907,6 +907,22 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
           </div>
         </div>
       )}
+      {!swap2Banner && swap2Option3State && !swap2Processing && (
+        <div
+          className="fixed inset-x-0 z-[9998] flex justify-center pointer-events-none"
+          role="status"
+          aria-live="polite"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
+        >
+          <div className="px-4 py-2 rounded-lg bg-black/70 text-gray-100 text-sm shadow-lg">
+            <span>
+              {swap2Option3State.stage === 'white'
+                ? t('swap2.option3.placeWhite', '흰 돌을 둘 위치를 클릭하세요.')
+                : t('swap2.option3.placeBlack', '검은 돌을 둘 위치를 클릭하세요.')}
+            </span>
+          </div>
+        </div>
+      )}
       {option3ChooseVisible && !swap2Processing && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[520px] max-w-[95%]">
@@ -966,76 +982,78 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
           )}
 
           {!(state.gameMode === 'pvo' && state.gameState === 'waiting') && (
-          {/* Swap2: Option3 placement banner */}
-          {state.gameMode === 'pvo' && state.history.length === 0 && (
-            <Script id="apply-opening" strategy="afterInteractive">
-              {`
-                (function () {
-                  try {
-                    var raw = sessionStorage.getItem('openingBoard');
-                    if (raw) {
-                      var data = JSON.parse(raw);
-                      window.dispatchEvent(new CustomEvent('apply-opening', { detail: data }));
-                      sessionStorage.removeItem('openingBoard');
-                    }
-                  } catch (_) {}
-                })();
-              `}
-            </Script>
-          )}
-
-          {/* Swap2: Option3 placement banner */}
-          {isPVA && (
-            <PlayerBanner
-              p1Profile={p1Profile}
-              p2Profile={p2Profile}
-              activeEmoticon={state.activeEmoticon}
-            />
-          )}
-
-          {/* Swap2: Option3 placement banner */}
-          <div className="mb-4 h-16 flex items-center justify-center">
-            {(state.gameMode === 'pva' || state.gameMode === 'pvo') &&
-              state.gameState === 'playing' && (
-                <div className="flex items-center gap-4 p-3 rounded-lg bg-black/30 backdrop-blur-sm shadow-lg">
-                  <div
-                    className={`w-8 h-8 rounded-full border-2 border-white ${
-                      state.currentPlayer === 'black' ? 'bg-black' : 'bg-white'
-                    }`}
-                    aria-label={state.currentPlayer === 'black' ? 'Black to play' : 'White to play'}
-                  />
-                  <span className="text-3xl font-mono text-white w-28 text-center">
-                    {formatTime(state.turnTimeRemaining)}
-                  </span>
-                </div>
+            <>
+              {/* Swap2: Option3 placement banner */}
+              {state.gameMode === 'pvo' && state.history.length === 0 && (
+                <Script id="apply-opening" strategy="afterInteractive">
+                  {`
+                    (function () {
+                      try {
+                        var raw = sessionStorage.getItem('openingBoard');
+                        if (raw) {
+                          var data = JSON.parse(raw);
+                          window.dispatchEvent(new CustomEvent('apply-opening', { detail: data }));
+                          sessionStorage.removeItem('openingBoard');
+                        }
+                      } catch (_) {}
+                    })();
+                  `}
+                </Script>
               )}
-          </div>
 
-          {/* Swap2: Option3 placement banner */}
-          <GameArea
-            state={state}
-            dispatch={dispatch}
-            replayGame={replayGame}
-            swap2Override={swap2BoardOverride ?? undefined}
-            socketRef={socketRef}
-          />
+              {/* Swap2: Option3 placement banner */}
+              {isPVA && (
+                <PlayerBanner
+                  p1Profile={p1Profile}
+                  p2Profile={p2Profile}
+                  activeEmoticon={state.activeEmoticon}
+                />
+              )}
 
-          {/* Swap2: Option3 placement banner */}
-          {state.winner && (
-            <GameEndModal winnerName={winnerName} duration={state.gameDuration}>
-              <PostGameManager
-                isPlayer={!state.isSpectator}
-                isSpectator={state.isSpectator}
-                onExit={onExit}
-                gameMode={state.gameMode}
-                room={state.room}
+              {/* Swap2: Option3 placement banner */}
+              <div className="mb-4 h-16 flex items-center justify-center">
+                {(state.gameMode === 'pva' || state.gameMode === 'pvo') &&
+                  state.gameState === 'playing' && (
+                    <div className="flex items-center gap-4 p-3 rounded-lg bg-black/30 backdrop-blur-sm shadow-lg">
+                      <div
+                        className={`w-8 h-8 rounded-full border-2 border-white ${
+                          state.currentPlayer === 'black' ? 'bg-black' : 'bg-white'
+                        }`}
+                        aria-label={state.currentPlayer === 'black' ? 'Black to play' : 'White to play'}
+                      />
+                      <span className="text-3xl font-mono text-white w-28 text-center">
+                        {formatTime(state.turnTimeRemaining)}
+                      </span>
+                    </div>
+                  )}
+              </div>
+
+              {/* Swap2: Option3 placement banner */}
+              <GameArea
+                state={state}
+                dispatch={dispatch}
+                replayGame={replayGame}
+                swap2Override={swap2BoardOverride ?? undefined}
                 socketRef={socketRef}
-                onRematch={() =>
-                  dispatch({ type: 'RESET_GAME', payload: { gameMode: state.gameMode, isRematch: true } })
-                }
               />
-            </GameEndModal>
-          )}
+
+              {/* Swap2: Option3 placement banner */}
+              {state.winner && (
+                <GameEndModal winnerName={winnerName} duration={state.gameDuration}>
+                  <PostGameManager
+                    isPlayer={!state.isSpectator}
+                    isSpectator={state.isSpectator}
+                    onExit={onExit}
+                    gameMode={state.gameMode}
+                    room={state.room}
+                    socketRef={socketRef}
+                    onRematch={() =>
+                      dispatch({ type: 'RESET_GAME', payload: { gameMode: state.gameMode, isRematch: true } })
+                    }
+                  />
+                </GameEndModal>
+              )}
+            </>
           )}
         </div>
       </div>
