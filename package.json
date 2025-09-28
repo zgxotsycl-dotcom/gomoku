@@ -7,6 +7,8 @@
     "dev:all": "npx concurrently \"npm:dev\" \"node server.js\"",
     "build": "next build",
     "start": "next start",
+    "start:ai": "node ai-server.js",
+    "start:watcher": "node model-watcher.js",
     "lint": "eslint --max-warnings=0 --ext .js,.jsx,.ts,.tsx .",
     "test:curl": "node scripts/test_pagecurl_geometry.js",
     "test": "vitest run",

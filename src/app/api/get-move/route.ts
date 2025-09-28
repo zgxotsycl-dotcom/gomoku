@@ -5,10 +5,12 @@ export const dynamic = 'force-dynamic';
 const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || '';
 const AI_TIMEOUT_MS = Number(process.env.SWAP2_SERVER_TIMEOUT_MS || 3000);
 
-function computeFallbackMove(board: any[][], player: 'black' | 'white') {
-  const n = Array.isArray(board) ? board.length : 15;
-  const safeBoard: (string|null)[][] = Array.isArray(board)
-    ? board
+function computeFallbackMove(board: any[][] | null | undefined, player: 'black' | 'white') {
+  // Guard against invalid or empty boards by creating a default empty 15x15 board
+  const validGrid = Array.isArray(board) && board.length > 0 && Array.isArray(board[0]);
+  const n = validGrid ? board!.length : 15;
+  const safeBoard: (string | null)[][] = validGrid
+    ? (board as (string | null)[][])
     : Array.from({ length: n }, () => Array(n).fill(null));
   // last move heuristic
   let lastR = -1, lastC = -1;
@@ -28,7 +30,7 @@ function computeFallbackMove(board: any[][], player: 'black' | 'white') {
     }
     // center bias
     const mid = Math.floor(n/2);
-    if (safeBoard[mid][mid]==null) return [mid,mid];
+    if (safeBoard[mid] && safeBoard[mid][mid]==null) return [mid,mid];
     // any empty
     for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (safeBoard[r][c]==null) return [r,c];
     return [Math.floor(n/2), Math.floor(n/2)];
@@ -64,7 +66,8 @@ async function fetchAi(url: string, body: unknown) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const board = Array.isArray((body as any)?.board) ? (body as any).board : null;
+  const rawBoard = (body as any)?.board;
+  const board = Array.isArray(rawBoard) && rawBoard.length > 0 && Array.isArray(rawBoard[0]) ? rawBoard : null;
   const player = ((body as any)?.player === 'black' || (body as any)?.player === 'white') ? (body as any).player : 'black';
 
   const remoteUrl = AI_BASE_URL ? `${AI_BASE_URL.replace(/\/$/, '')}/get-move` : '';
@@ -74,6 +77,6 @@ export async function POST(request: Request) {
   }
 
   // Fallback move to guarantee progress
-  const [r, c] = computeFallbackMove(board || [], player);
+  const [r, c] = computeFallbackMove(board, player);
   return NextResponse.json({ move: [r, c], source: 'fallback' });
 }

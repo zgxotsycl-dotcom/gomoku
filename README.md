@@ -1,5 +1,57 @@
 # Gomoku App v2
 
+
+## AI Inference Server (optional)
+
+This repo includes a lightweight AI server that implements the endpoints the app expects:
+
+- POST /swap2/propose
+- POST /swap2/second
+- POST /swap2/choose
+- POST /get-move
+
+By default it uses simple heuristics so the game never blocks. You can hot‑load your own engine by dropping files under `MODEL_DIR/current/` (see below).
+
+### Start locally
+
+```
+# AI server
+npm run start:ai
+
+# (optional) model watcher
+# ENV: MODEL_MANIFEST_URL, MODEL_BASE_URL, MODEL_DIR, POLL_INTERVAL_MS
+npm run start:watcher
+```
+
+Environment variables:
+
+- AI_PORT (default 8081)
+- MODEL_DIR (default ./models)
+- MODEL_MANIFEST_URL (e.g. https://storage.googleapis.com/omokk-models/models/manifest.json)
+- MODEL_BASE_URL (e.g. https://storage.googleapis.com/omokk-models)
+- POLL_INTERVAL_MS (default 60000)
+
+Point the Next.js app to this server on Vercel:
+
+```
+SWAP2_SERVER_URL=https://ai.omokk.com
+SWAP2_SERVER_TIMEOUT_MS=6000
+```
+
+### Custom engine hot‑load
+
+If a file `MODEL_DIR/current/engine.js` exists, the AI server will require() it every ~10s and use it for moves.
+
+Minimal engine interface:
+
+```js
+// MODEL_DIR/current/engine.js
+module.exports = {
+  evaluate(board, toMove) {
+    return { move: [7, 7], score: 0 };
+  },
+};
+```
 본 프로젝트는 Next.js 기반 오목(Gomoku) 애플리케이션입니다. 이 문서는 Swap2 규칙, AI 프록시, 환경변수 및 QA 용 설정에 대해 설명합니다.
 
 ## 환경 변수
@@ -46,4 +98,3 @@ npm test
 ```
 
 주요 시나리오가 `src/components/__tests__/Board.swap2.test.tsx`에 포함되어 있습니다.
-
