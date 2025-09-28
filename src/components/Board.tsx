@@ -393,7 +393,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
     swap2ProposalPromiseRef.current = pending;
     return pending;
-  }, [state.board]);
+  }, [state.board, bannerDurationMs, t]);
 
   const ensureSwap2SecondDecision = useCallback(async (): Promise<Swap2SecondDecision | null> => {
     if (swap2SecondDecisionRef.current) return swap2SecondDecisionRef.current;
@@ -475,7 +475,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
     swap2SecondPromiseRef.current = pending;
     return pending;
-  }, [ensureSwap2Proposal]);
+  }, [ensureSwap2Proposal, bannerDurationMs, t]);
 
   /** 색 선택 처리 (수동/자동) */
   const onChooseColor = useCallback(
@@ -579,6 +579,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       ensureSwap2SecondDecision,
       finalizeSwap2Opening,
       dispatch,
+      bannerDurationMs,
     ]
   );
 
@@ -664,7 +665,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         finalizeSwap2Opening(board, 'black', 'white');
       }
     },
-    [finalizeSwap2Opening]
+    [finalizeSwap2Opening, bannerDurationMs, t]
   );
 
   const handleSwap2BoardClick = useCallback(
@@ -686,7 +687,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         if (option3SecondIsAI) { setSwap2Banner(t('swap2.banner.deciding','색상 결정 중...')); void finalizeOption3(boardCopy); } else { setOption3ChooseVisible(true); }
       }
     },
-    [swap2Option3State]
+    [swap2Option3State, option3SecondIsAI, finalizeOption3, t]
   );
 
   const swap2BoardOverride = useMemo(() => {
@@ -831,6 +832,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     swap2Option3State,
     swap2Processing,
     dispatch,
+    randomStart,
   ]);
 
   // Auto-start: 랜덤 색상으로 즉시 시작 (초기 진입 1회)
@@ -859,6 +861,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     swap2SecondReady,
     state.rematchSwap2Pending,
     onChooseColor,
+    randomStart,
   ]);
 
   /* ========== 리매치: 기존 인간 색상 유지해서 자동 선택 ========== */
@@ -995,7 +998,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                className="px-4 py-2 md:py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 text-sm md:text-base btn-hover-scale"
+                className="px-4 py-2 md:py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 text-sm md:text-base btn-hover-scale min-w-[120px] md:min-w-[160px] whitespace-nowrap"
                 onClick={() => {
                   const board = option3ResultBoardRef.current; if (!board) return;
                   setOption3ChooseVisible(false);
@@ -1004,7 +1007,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               >{t('swap2.option3.pickWhite','나는 백(White)')}</button>
               <button
                 type="button"
-                className="px-4 py-2 md:py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 text-sm md:text-base btn-hover-scale"
+                className="px-4 py-2 md:py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 text-sm md:text-base btn-hover-scale min-w-[120px] md:min-w-[160px] whitespace-nowrap"
                 onClick={() => {
                   const board = option3ResultBoardRef.current; if (!board) return;
                   setOption3ChooseVisible(false);

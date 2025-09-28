@@ -12,7 +12,7 @@ interface GameBoardProps {
     currentPlayer: Player;
     aiPlayer: Player;
     gameState: string;
-    whatIf: { isMode: boolean; };
+    whatIf: { isMode: boolean };
     winningLine: { row: number; col: number }[] | null;
     forbiddenMoves: { row: number; col: number }[];
     isWinningShake: boolean; // Add new prop
@@ -58,13 +58,33 @@ export const GameBoard = ({
             return arr;
         }
         return [] as [number, number][];
-    })();\n    const winShadow = (() => { let s=''; if (winningLine && winner){ s = winner==='black' ? 'animate-gold-shadow' : 'animate-blue-shadow'; } else if (winningLine){ s='animate-red-shadow'; } return s; })();\n\n    return (\n        <div
+    })();
+
+    const winShadow = (() => {
+        let s = '';
+        // Local modes (pvp/pva/spectate): colorize the frame by winner
+        // Online (pvo): keep red even on win
+        if (winningLine && winner && gameMode !== 'pvo') {
+            s = winner === 'black' ? 'animate-gold-shadow' : 'animate-blue-shadow';
+        } else if (winningLine) {
+            s = 'animate-red-shadow';
+        }
+        return s;
+    })();
+
+    return (
+        <div
             className={`relative ${isWinningShake ? 'animate-board-shake' : ''}`}
-            // 모바일에서는 너무 작지 않게, 데스크탑에서는 과도하게 커지지 않도록 클램프 처리
-            // 300px ~ 800px 사이에서 92vmin 기준으로 반응
-            style={boardSizePx && boardSizePx > 0 ? { width: `${boardSizePx}px`, height: `${boardSizePx}px` } : { width: 'clamp(280px, 92vmin, 820px)', height: 'clamp(280px, 92vmin, 820px)' }}
+            // Board container fits within available square area; never exceed parent
+            style={
+              boardSizePx && boardSizePx > 0
+                ? { width: `${boardSizePx}px`, height: `${boardSizePx}px`, maxWidth: '100%', maxHeight: '100%' }
+                : { width: 'clamp(280px, 92vmin, 820px)', height: 'clamp(280px, 92vmin, 820px)', maxWidth: '100%', maxHeight: '100%' }
+            }
         >
-            {/* The frame with a wooden color */}\n            <div className={p-2 md:p-4 bg-[#d2b48c] rounded-md shadow-lg w-full h-full }>\n<div
+            {/* The frame with a wooden color */}
+            <div className={`p-2 md:p-4 bg-[#d2b48c] rounded-md shadow-lg w-full h-full ${winShadow}`}>
+                <div
                     onClick={handleBoardClick}
                     className={`goboard bg-[#c19a6b] relative w-full h-full rounded-sm select-none touch-manipulation overscroll-none ${isSpectator || (gameMode === 'pva' && currentPlayer === aiPlayer) || (gameState !== 'playing' && !whatIf.isMode) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     role="grid"
@@ -161,7 +181,3 @@ export const GameBoard = ({
         </div>
     );
 };
-
-
-
-

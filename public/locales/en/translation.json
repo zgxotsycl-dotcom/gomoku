@@ -127,11 +127,19 @@
   "swap2.guide.choose": "Swap2: Choose Color",
   "swap2.guide.chooseDetail": "Pick Black/White or Option 3 (two stones)",
   "swap2.guide.preparing": "Swap2: Preparing second decision",
-  "swap2.guide.loading": "Loading…",
+  "swap2.guide.loading": "Loading...",
   "swap2.guide.swapDecision": "Swap2: Keep/Swap decision",
   "swap2.guide.swapDetail": "Keep White, swap to Black, or Option 3",
   "History": "History",
   "Turn": "Turn",
   "Ready": "Ready",
-  "NoMoves": "No moves yet"
+  "NoMoves": "No moves yet",
+  "difficulty.title": "Choose difficulty",
+  "difficulty.easy": "Easy",
+  "difficulty.normal": "Normal",
+  "difficulty.easyDesc1": "Relaxed play",
+  "difficulty.easyDesc2": "Learn the basics",
+  "difficulty.normalDesc1": "Standard rules",
+  "difficulty.normalDesc2": "Balanced challenge"
 }
+

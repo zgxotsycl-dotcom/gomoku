@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
-type Difficulty = 'easy' | 'normal';
+export type Difficulty = 'easy' | 'normal';
 
 interface DifficultySelectProps {
   visible: boolean;
@@ -13,40 +14,34 @@ interface DifficultySelectProps {
 const EXIT_DURATION = 220;
 
 export default function DifficultySelect({ visible, onSelect, onDismiss }: DifficultySelectProps) {
+  const { t, i18n } = useTranslation();
+  const L = useCallback((ko: string, ja: string, en: string) => {
+    const lng = (i18n?.language || 'en').toLowerCase();
+    if (lng.startsWith('ko')) return ko;
+    if (lng.startsWith('ja')) return ja;
+    return en;
+  }, [i18n?.language]);
   const prevVisibleRef = useRef(visible);
   const [shouldRender, setShouldRender] = useState(visible);
   const [closing, setClosing] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closingRef = useRef(closing);
 
-  useEffect(() => {
-    closingRef.current = closing;
-  }, [closing]);
+  useEffect(() => { closingRef.current = closing; }, [closing]);
 
   useEffect(() => {
     if (prevVisibleRef.current === visible) return;
     prevVisibleRef.current = visible;
-
     if (visible) {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
       setShouldRender(true);
       setClosing(false);
       return;
     }
-
-    if (!closingRef.current) {
-      setShouldRender(false);
-    }
+    if (!closingRef.current) setShouldRender(false);
   }, [visible]);
 
-  useEffect(() => () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-  }, []);
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   const triggerDismiss = useCallback(() => {
     if (!onDismiss || closing) return;
@@ -61,26 +56,16 @@ export default function DifficultySelect({ visible, onSelect, onDismiss }: Diffi
 
   useEffect(() => {
     if (!visible) return;
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        triggerDismiss();
-      }
-    };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === 'Escape') triggerDismiss(); };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [visible, triggerDismiss]);
 
-  const handlePanelClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    event.stopPropagation();
-  }, []);
+  const handlePanelClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => { event.stopPropagation(); }, []);
 
-  const handleSelect = useCallback(
-    (difficulty: Difficulty) => {
-      if (closing) return;
-      onSelect(difficulty);
-    },
-    [closing, onSelect],
-  );
+  const handleSelect = useCallback((difficulty: Difficulty) => {
+    if (closing) return; onSelect(difficulty);
+  }, [closing, onSelect]);
 
   if (!shouldRender) return null;
 
@@ -98,7 +83,7 @@ export default function DifficultySelect({ visible, onSelect, onDismiss }: Diffi
         className={`bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[680px] max-w-[96%] ${panelStateClass}`}
         onClick={handlePanelClick}
       >
-        <h3 className="text-center text-white text-2xl font-bold mb-5">난이도를 선택해주세요</h3>
+        <h3 className="text-center text-white text-2xl font-bold mb-5">{t('difficulty.title', L('난이도를 선택하세요','難易度を選択','Choose difficulty'))}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <button
             onClick={() => handleSelect('easy')}
@@ -106,11 +91,10 @@ export default function DifficultySelect({ visible, onSelect, onDismiss }: Diffi
           >
             <div className="absolute inset-0 opacity-20 group-hover:opacity-35 transition-opacity bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.25),transparent_55%)]" />
             <div>
-              <div className="text-white font-extrabold text-xl">쉬움</div>
+              <div className="text-white font-extrabold text-xl">{t('difficulty.easy', L('쉬움','かんたん','Easy'))}</div>
               <ul className="text-emerald-100 text-sm mt-2 space-y-1 list-disc list-inside">
-                <li>초보자 친화(금수 규칙 완화)</li>
-                <li>AI의 응답 시간 단축</li>
-                <li>패턴/수읽기 부담 감소</li>
+                <li>{t('difficulty.easyDesc1', L('편하게 플레이','気楽にプレイ','Relaxed play'))}</li>
+                <li>{t('difficulty.easyDesc2', L('기본 규칙 익히기','基本を学ぶ','Learn the basics'))}</li>
               </ul>
             </div>
           </button>
@@ -120,11 +104,10 @@ export default function DifficultySelect({ visible, onSelect, onDismiss }: Diffi
           >
             <div className="absolute inset-0 opacity-20 group-hover:opacity-35 transition-opacity bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,255,0.25),transparent_55%)]" />
             <div>
-              <div className="text-white font-extrabold text-xl">보통</div>
+              <div className="text-white font-extrabold text-xl">{t('difficulty.normal', L('일반','ふつう','Normal'))}</div>
               <ul className="text-sky-100 text-sm mt-2 space-y-1 list-disc list-inside">
-                <li>Swap2 룰 적용(선/후 역할 선택)</li>
-                <li>타이머(초/초) 활성화</li>
-                <li>AI가 제한 시간까지 깊게 계산</li>
+                <li>{t('difficulty.normalDesc1', L('표준 규칙','標準ルール','Standard rules'))}</li>
+                <li>{t('difficulty.normalDesc2', L('균형 잡힌 도전','ほどよい難易度','Balanced challenge'))}</li>
               </ul>
             </div>
           </button>
@@ -136,23 +119,10 @@ export default function DifficultySelect({ visible, onSelect, onDismiss }: Diffi
         .select-panel-enter { animation: selectPanelIn 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .select-panel-leave { animation: selectPanelOut 200ms ease forwards; }
 
-        @keyframes selectOverlayIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes selectOverlayOut {
-          from { opacity: 1; }
-          to { opacity: 0; }
-        }
-        @keyframes selectPanelIn {
-          0% { opacity: 0; transform: translateY(16px) scale(0.96); }
-          60% { opacity: 1; transform: translateY(-4px) scale(1.01); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes selectPanelOut {
-          0% { opacity: 1; transform: translateY(0) scale(1); }
-          100% { opacity: 0; transform: translateY(14px) scale(0.96); }
-        }
+        @keyframes selectOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes selectOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes selectPanelIn { 0% { opacity: 0; transform: translateY(16px) scale(0.96); } 60% { opacity: 1; transform: translateY(-4px) scale(1.01); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes selectPanelOut { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(14px) scale(0.96); } }
       `}</style>
     </div>
   );

@@ -111,7 +111,7 @@ export default function PvaPage() {
   };
 
   return (
-    <div className="flex flex-col items-center p-4 min-h-screen bg-gray-800 text-white">
+    <div className="flex flex-col items-center p-4 min-h-[100svh] bg-gray-800 text-white">
         <div className="w-full max-w-4xl mb-4 flex justify-between items-center">
             <Link href="/" className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600 transition-transform">{t('Board.backToMenu')}</Link>
             {playerColor && <div className="text-lg">{t('Board.toast.youAre')} <span className={`font-bold ${playerColor === 'black' ? 'text-gray-900' : 'text-white'}`}>{playerColor === 'black' ? t('Board.toast.black') : t('Board.toast.white')}</span></div>}

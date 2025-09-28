@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global viewport-fit: prevent page scrollbars and fit to viewport */
+html, body {
+  height: 100svh;
+  overflow: hidden;
+}
+*, *::before, *::after { box-sizing: border-box; }
+
 /* Winning Shake Animation */
 @keyframes board-shake {
   0%, 100% {

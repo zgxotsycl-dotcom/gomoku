@@ -31,7 +31,7 @@ export default function RootLayout({
         <html lang={lng}>
             <head>
             </head>
-            <body className={inter.className + ' bg-gray-900 text-white'}>
+            <body className={inter.className + ' bg-gray-900 text-white overflow-hidden min-h-[100svh]'}>
                 <I18nProvider lng={lng}>
                     <AuthProvider>
                         {children}

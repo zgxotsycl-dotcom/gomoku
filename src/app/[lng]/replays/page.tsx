@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { toastOnce } from '@/lib/toastOnce';
 
 // Define the shape of the joined game data
 interface GameInfo {
@@ -47,7 +48,7 @@ const ReplaysPage = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      toast.error('Failed to load replays.');
+      toastOnce('replays_load_error', () => toast.error('Failed to load replays.'));
       console.error('Error fetching replays:', error);
     } else {
       // Ensure the data matches the expected type
@@ -68,9 +69,10 @@ const ReplaysPage = () => {
       .eq('id', replay_id);
 
     if (error) {
-      toast.error('Failed to update star status.');
+      toastOnce('replays_star_update_error', () => toast.error('Failed to update star status.'));
     } else {
-      toast.success(`Replay ${!current_status ? 'starred' : 'unstarred'}.`);
+      const key = !current_status ? 'replay_starred' : 'replay_unstarred';
+      toastOnce(key, () => toast.success(`Replay ${!current_status ? 'starred' : 'unstarred'}.`));
       fetchReplays(); // Refresh the list
     }
   };
@@ -84,7 +86,7 @@ const ReplaysPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-800 text-white p-4 sm:p-8">
+    <div className="min-h-[100svh] bg-gray-800 text-white p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="relative">
             <div className="absolute top-0 left-0">
@@ -134,3 +136,4 @@ const ReplaysPage = () => {
 };
 
 export default ReplaysPage;
+

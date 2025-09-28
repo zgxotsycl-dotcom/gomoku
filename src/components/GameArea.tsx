@@ -29,7 +29,12 @@ const GameArea = ({ state, dispatch, replayGame, swap2Override, socketRef }: Gam
         if (!el) return;
         const compute = () => {
             const rect = el.getBoundingClientRect();
-            const size = Math.floor(Math.max(0, Math.min(rect.width, rect.height)));
+            const vw = window.innerWidth || document.documentElement.clientWidth;
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            // Clamp available area to the visible viewport to avoid scrollbars on desktop
+            const maxVisibleW = Math.max(0, Math.min(rect.width, vw - rect.left - 8));
+            const maxVisibleH = Math.max(0, Math.min(rect.height, vh - rect.top - 8));
+            const size = Math.floor(Math.max(0, Math.min(maxVisibleW, maxVisibleH)));
             setBoardSize(size);
         };
         compute();
@@ -91,7 +96,11 @@ const GameArea = ({ state, dispatch, replayGame, swap2Override, socketRef }: Gam
 
     return (
         <div className="w-full flex flex-col items-center flex-1 min-h-0">
-            <div ref={fitRef} className="w-full flex-1 min-h-0 flex items-center justify-center px-2">
+            <div
+              ref={fitRef}
+              className="w-full flex-1 min-h-0 flex items-center justify-center px-2"
+              style={{ maxWidth: '100vw', maxHeight: '100svh' }}
+            >
             <GameBoard
                 board={boardForRender}
                 lastMove={getLastMove()}

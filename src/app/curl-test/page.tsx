@@ -6,7 +6,7 @@ import PageCurl from '@/components/PageCurl';
 export default function CurlTestPage() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="min-h-screen p-6 bg-gray-950 text-white">
+    <div className="min-h-[100svh] p-6 bg-gray-950 text-white">
       <div className="max-w-3xl mx-auto space-y-4">
         <h1 className="text-2xl font-semibold">PageCurl 3D Roll Test</h1>
         <div className="flex items-center gap-3">
@@ -35,4 +35,5 @@ export default function CurlTestPage() {
     </div>
   );
 }
+
 

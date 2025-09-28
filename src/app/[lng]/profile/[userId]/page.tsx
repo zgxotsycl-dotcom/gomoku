@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Board from '@/components/Board';
 import type { GameMode } from '@/types';
 import Auth from '@/components/Auth';
-import Ranking from '@/components/Ranking';
+import Leaderboard from '@/components/Leaderboard';
 import SettingsModal from '@/components/SettingsModal';
 import SupporterBenefitsModal from '@/components/SupporterBenefitsModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -93,7 +93,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="relative min-h-screen main-background flex items-center justify-center">
+      <div className="relative min-h-[100svh] main-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
             <div className="flex items-center justify-center space-x-2">
                 <div className="w-8 h-8 bg-black rounded-full animate-bounce shadow-lg"></div>
@@ -108,9 +108,9 @@ export default function Home() {
 
   const showLogin = !session;
   return (
-  <div className={`relative min-h-screen ${selectedGameMode === 'pva' ? '' : 'main-background'}`}>
+  <div className={`relative min-h-[100svh] ${selectedGameMode === 'pva' ? '' : 'main-background'}`}>
     {showLogin ? (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[100svh]">
         <Auth />
       </div>
     ) : (
@@ -149,7 +149,7 @@ btn-hover-scale">
                 </button>
               )}
             </div>
-            <Ranking />
+            <Leaderboard />
           </div>
         )}
 
@@ -173,3 +173,4 @@ btn-hover-scale">
   </div>
 )
 }
+
