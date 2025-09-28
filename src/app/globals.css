@@ -15,6 +15,59 @@
   }
 }
 
+/* One-time strong glow for the last move stone */
+.stone-glow-once::after {
+  content: '';
+  position: absolute;
+  inset: -6%;
+  border-radius: 9999px;
+  pointer-events: none;
+  box-shadow: 0 0 0 0 var(--stone-glow-color, rgba(255,255,255,0.95));
+  opacity: 0;
+  animation: stoneOncePulse 950ms ease-out 1;
+}
+
+@keyframes stoneOncePulse {
+  0%   { opacity: .95; box-shadow: 0 0 0 0 var(--stone-glow-color); }
+  40%  { opacity: .85; box-shadow: 0 0 12px 6px var(--stone-glow-color); }
+  70%  { opacity: .6;  box-shadow: 0 0 22px 10px var(--stone-glow-color); }
+  100% { opacity: 0;   box-shadow: 0 0 30px 16px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stone-glow-once::after { animation: none; }
+}
+
+/* Winner line (5 in a row) special gold/blue animation on stones */
+.win-stone-gold::after,
+.win-stone-blue::after {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+@keyframes winStoneGold {
+  0%   { box-shadow: 0 0 10px rgba(255,215,0,.55), 0 0 22px 6px rgba(255,215,0,.35); opacity: .9; }
+  35%  { box-shadow: 0 0 18px rgba(255,215,0,.9),  0 0 42px 12px rgba(255,215,0,.5);  opacity: 1; }
+  70%  { box-shadow: 0 0 12px rgba(255,215,0,.6),  0 0 26px 8px rgba(255,215,0,.35);  opacity: .85; }
+  100% { box-shadow: 0 0 10px rgba(255,215,0,.55), 0 0 22px 6px rgba(255,215,0,.35); opacity: .9; }
+}
+.win-stone-gold::after { animation: winStoneGold 1600ms ease-in-out infinite; }
+
+@keyframes winStoneBlue {
+  0%   { box-shadow: 0 0 10px rgba(90,160,255,.55), 0 0 22px 6px rgba(90,160,255,.35); opacity: .9; }
+  35%  { box-shadow: 0 0 18px rgba(90,160,255,.9),  0 0 42px 12px rgba(90,160,255,.5);  opacity: 1; }
+  70%  { box-shadow: 0 0 12px rgba(90,160,255,.6),  0 0 26px 8px rgba(90,160,255,.35);  opacity: .85; }
+  100% { box-shadow: 0 0 10px rgba(90,160,255,.55), 0 0 22px 6px rgba(90,160,255,.35); opacity: .9; }
+}
+.win-stone-blue::after { animation: winStoneBlue 1600ms ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .win-stone-gold::after, .win-stone-blue::after { animation: none; opacity: .8; }
+}
+
 .animate-board-shake {
   animation: board-shake 0.5s ease-in-out;
 }
@@ -452,6 +505,34 @@
   animation: red-shadow-pulse 2s infinite;
 }
 
+/* Winner glow: gold (black wins) */
+@keyframes gold-shadow-pulse {
+  0% {
+    box-shadow: 0 0 18px rgba(255, 215, 0, 0.45), 10px 10px 30px rgba(0,0,0,0.35), inset 0 0 10px rgba(0,0,0,0.15);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(255, 215, 0, 0.9), 10px 10px 30px rgba(0,0,0,0.35), inset 0 0 10px rgba(0,0,0,0.15);
+  }
+  100% {
+    box-shadow: 0 0 18px rgba(255, 215, 0, 0.45), 10px 10px 30px rgba(0,0,0,0.35), inset 0 0 10px rgba(0,0,0,0.15);
+  }
+}
+.animate-gold-shadow { animation: gold-shadow-pulse 1800ms ease-in-out infinite; }
+
+/* Winner glow: blue (white wins) */
+@keyframes blue-shadow-pulse {
+  0% {
+    box-shadow: 0 0 18px rgba(80, 160, 255, 0.45), 10px 10px 30px rgba(0,0,0,0.35), inset 0 0 10px rgba(0,0,0,0.15);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(80, 160, 255, 0.9), 10px 10px 30px rgba(0,0,0,0.35), inset 0 0 10px rgba(0,0,0,0.15);
+  }
+  100% {
+    box-shadow: 0 0 18px rgba(80, 160, 255, 0.45), 10px 10px 30px rgba(0,0,0,0.35), inset 0 0 10px rgba(0,0,0,0.15);
+  }
+}
+.animate-blue-shadow { animation: blue-shadow-pulse 1800ms ease-in-out infinite; }
+
 @keyframes slime-in {
     from {
         transform: scale(1.5);
@@ -665,3 +746,28 @@
   linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.03) 90%, rgba(0,0,0,0.0) 100%);
   will-change: transform, opacity, filter;
 }
+
+/* Turn-based board glow */
+.board-glow::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 16px;
+  pointer-events: none;
+  box-shadow:
+    0 0 10px 0 var(--glow-color, rgba(255,255,255,0.7)),
+    0 0 28px 6px var(--glow-color, rgba(255,255,255,0.7));
+  opacity: .75;
+  animation: boardGlowPulse 2400ms ease-in-out infinite;
+}
+
+@keyframes boardGlowPulse {
+  0% { box-shadow: 0 0 10px 0 var(--glow-color), 0 0 28px 6px var(--glow-color); opacity: .65; }
+  50% { box-shadow: 0 0 18px 0 var(--glow-color), 0 0 40px 10px var(--glow-color); opacity: .9; }
+  100% { box-shadow: 0 0 10px 0 var(--glow-color), 0 0 28px 6px var(--glow-color); opacity: .65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-glow::after { animation: none; opacity: .5; }
+}
+

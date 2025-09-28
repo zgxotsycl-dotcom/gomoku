@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useViewportScale } from '../hooks/useViewportScale';
 import { useTranslation } from 'react-i18next';
 import { useGomoku } from '../lib/hooks/useGomoku';
 import GameEndModal from './GameEndModal';
@@ -182,6 +183,7 @@ const BANNER_DURATION_DEFAULT = Number(
 const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = null, loadingOverlayActive = false }: BoardProps) => {
   const { t } = useTranslation();
   const { state, dispatch, socketRef } = useGomoku(initialGameMode, onExit, spectateRoomId, replayGame);
+  const vp = useViewportScale();
 
   const [swap2Decision, setSwap2Decision] = useState<Swap2DecisionState | null>(null);
   const [swap2PreviewBoard, setSwap2PreviewBoard] = useState<BoardMatrix | null>(null);
@@ -213,6 +215,52 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     }
     return state.winner.charAt(0).toUpperCase() + state.winner.slice(1);
   }, [state.winner, state.gameMode, state.aiPlayer, state.userProfile?.username]);
+
+  // Swap2 guide visibility helpers
+  const inSwap2Phase = useMemo(() => {
+    if (!isPVA) return false;
+    if (!isOpeningWaiting) return false;
+    return (
+      state.showColorSelect ||
+      !!swap2Decision ||
+      !!swap2Option3State ||
+      !!swap2PreviewBoard ||
+      !swap2SecondReady
+    );
+  }, [isPVA, isOpeningWaiting, state.showColorSelect, swap2Decision, swap2Option3State, swap2PreviewBoard, swap2SecondReady]);
+
+  const swap2Guide = useMemo(() => {
+    if (!inSwap2Phase) return null;
+    // Main/secondary texts
+    let title = t('swap2.guide.title','Swap2 오프닝 진행 중');
+    let detail = '';
+
+    if (swap2Option3State) {
+      // Option3 placement stage
+      const stageLabel = swap2Option3State.stage === 'white'
+        ? t('swap2.option3.placeWhite','흰 돌을 둘 위치를 클릭하세요.')
+        : t('swap2.option3.placeBlack','검은 돌을 둘 위치를 클릭하세요.');
+      const left = swap2Option3State.stage === 'white' ? 2 : 1;
+      detail = `${t('swap2.guide.option3','두 수 배치')}: ${stageLabel} · ${t('swap2.guide.left','남은 수')}: ${left}`;
+    } else if (state.showColorSelect) {
+      title = t('swap2.guide.choose','Swap2: 색상 선택');
+      detail = t('swap2.guide.chooseDetail','흑/백 선택 또는 두 수 더 두기(Option3)');
+    } else if (!swap2SecondReady) {
+      title = t('swap2.guide.preparing','Swap2: 두 번째 결정 준비 중');
+      detail = t('swap2.guide.loading','로딩 중…');
+    } else if (swap2Decision && !swap2Option3State) {
+      title = t('swap2.guide.swapDecision','Swap2: 색상 유지/교환 선택');
+      detail = t('swap2.guide.swapDetail','백 유지, 흑으로 교환 또는 두 수 더 두기');
+    }
+
+    return { title, detail };
+  }, [inSwap2Phase, swap2Option3State, state.showColorSelect, swap2SecondReady, swap2Decision, t]);
+
+  // Responsive sizes for timer/guide based on viewport scale
+  const timerHeightCls = vp.size === 'xs' ? 'h-12' : vp.size === 'sm' ? 'h-14' : vp.size === 'md' ? 'h-16' : 'h-20';
+  const timerTextCls = vp.size === 'xs' ? 'text-2xl' : vp.size === 'sm' ? 'text-3xl' : vp.size === 'md' ? 'text-4xl' : 'text-5xl';
+  const guideTextCls = vp.size === 'xs' ? 'text-[10px]' : vp.size === 'sm' ? 'text-xs' : vp.size === 'md' ? 'text-sm' : 'text-base';
+  const tinyLayout = (vp.size === 'xs' || vp.size === 'sm') && vp.portrait;
 
   const { extraWhitePending, extraWhitePlacementsLeft } = useMemo(() => {
     const pending = state.pendingOpening === 'white_extra2' || state.pendingOpening === 'white_extra1';
@@ -909,6 +957,19 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
           </div>
         </div>
       )}
+      {/* Swap2 guide panel */}
+      {swap2Guide && (
+        <div
+          className="fixed inset-x-0 z-[9998] flex justify-center"
+          aria-live="polite"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 48px)' }}
+        >
+          <div className={`px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-black/60 text-white ${guideTextCls} shadow pointer-events-none`}>
+            <span className="font-semibold">{swap2Guide.title}</span>
+            {swap2Guide.detail && <span className="opacity-80 ml-2">{swap2Guide.detail}</span>}
+          </div>
+        </div>
+      )}
       {!swap2Banner && swap2Option3State && !swap2Processing && (
         <div
           className="fixed inset-x-0 z-[9998] flex justify-center pointer-events-none"
@@ -927,28 +988,29 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       )}
       {option3ChooseVisible && !swap2Processing && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[520px] max-w-[95%]">
-            <h3 className="text-center text-white text-xl font-bold mb-3">색상을 선택하세요</h3>
-            <p className="text-center text-gray-300 mb-5 text-sm">두 수 배치가 끝났습니다. 색상을 결정해 주세요.</p>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4 md:p-6 shadow-2xl w-[92vw] max-w-[520px]">
+            <h3 className="text-center text-white text-xl font-bold mb-3">{t('swap2.option3.chooseTitle','색상을 선택하세요')}</h3>
+            <p className="text-center text-gray-300 mb-5 text-sm">{t('swap2.option3.chooseDesc','두 수 배치가 끝났습니다. 색상을 결정해 주세요.')}</p>
+
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                className="px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 btn-hover-scale"
+                className="px-4 py-2 md:py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 text-sm md:text-base btn-hover-scale"
                 onClick={() => {
                   const board = option3ResultBoardRef.current; if (!board) return;
                   setOption3ChooseVisible(false);
                   finalizeSwap2Opening(board, 'black', 'white');
                 }}
-              >나는 백(White)</button>
+              >{t('swap2.option3.pickWhite','나는 백(White)')}</button>
               <button
                 type="button"
-                className="px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 btn-hover-scale"
+                className="px-4 py-2 md:py-3 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-100 text-sm md:text-base btn-hover-scale"
                 onClick={() => {
                   const board = option3ResultBoardRef.current; if (!board) return;
                   setOption3ChooseVisible(false);
                   finalizeSwap2Opening(board, 'white', 'white');
                 }}
-              >나는 흑(Black)</button>
+              >{t('swap2.option3.pickBlack','나는 흑(Black)')}</button>
             </div>
           </div>
         </div>
@@ -963,12 +1025,12 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
         )}
         {/* Swap2: Option3 placement banner */}
         <div className="fixed z-50" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 'calc(env(safe-area-inset-left, 0px) + 16px)' }}>
-          <button onClick={onExit} className="text-gray-400 hover:text-gray-200 p-2 transition-colors btn-hover-scale">
+          <button onClick={onExit} className="text-gray-400 hover:text-gray-200 p-2 transition-colors text-sm md:text-base btn-hover-scale">
             {t('Back')}
           </button>
         </div>
 
-        <div className="flex flex-col items-center w-full h-full pt-6">
+        <div className="flex flex-col items-center w-full h-full min-h-0 pt-2 md:pt-6">
           {state.gameMode === 'pvo' && state.gameState === 'waiting' && (
             <div className="w-full h-full flex items-start justify-center" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 40px)' }}>
               <OnlineMultiplayerMenu
@@ -1013,7 +1075,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               )}
 
               {/* Swap2: Option3 placement banner */}
-              <div className="mb-4 h-16 flex items-center justify-center">
+              <div className={`mb-1 md:mb-4 ${timerHeightCls} flex items-center justify-center ${tinyLayout ? 'scale-90' : ''}`}>
                 {(state.gameMode === 'pva' || state.gameMode === 'pvo') &&
                   state.gameState === 'playing' && (
                     <div className="flex items-center gap-4 p-3 rounded-lg bg-black/30 backdrop-blur-sm shadow-lg">
@@ -1023,7 +1085,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
                         }`}
                         aria-label={state.currentPlayer === 'black' ? 'Black to play' : 'White to play'}
                       />
-                      <span className="text-3xl font-mono text-white w-28 text-center">
+                      <span className={`${timerTextCls} font-mono text-white w-28 text-center`}>
                         {formatTime(state.turnTimeRemaining)}
                       </span>
                     </div>
@@ -1031,13 +1093,59 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               </div>
 
               {/* Swap2: Option3 placement banner */}
-              <GameArea
-                state={state}
-                dispatch={dispatch}
-                replayGame={replayGame}
-                swap2Override={swap2BoardOverride ?? undefined}
-                socketRef={socketRef}
-              />
+              <div className="w-full flex-1 min-h-0 flex gap-3">
+                {vp.ultraWide && (
+                  <aside className="hidden 2xl:flex w-64 min-h-0">
+                    <div className="w-full h-full bg-black/30 border border-gray-700 rounded-lg p-3 text-gray-100 overflow-auto">
+                      <div className="text-sm font-semibold mb-2">{t('swap2.guide.title','Swap2 오프닝 진행 중')}</div>
+                      {swap2Guide ? (
+                        <>
+                          <div className="text-xs opacity-90 mb-1">{swap2Guide.title}</div>
+                          {swap2Guide.detail && <div className="text-xs opacity-80">{swap2Guide.detail}</div>}
+                        </>
+                      ) : (
+                        <div className="text-xs opacity-80">{t('Ready','Ready')}</div>
+                      )}
+                      <div className="mt-3 text-xs">
+                        <div className="opacity-80 mb-1">{t('Turn','Turn')}</div>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-block w-3 h-3 rounded-full ${state.currentPlayer==='black'?'bg-black border border-white':'bg-white border border-black'}`}></span>
+                          <span className="capitalize">{state.currentPlayer}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </aside>
+                )}
+
+                <div className="w-full flex-1 min-h-0 flex">
+                  <GameArea
+                    state={state}
+                    dispatch={dispatch}
+                    replayGame={replayGame}
+                    swap2Override={swap2BoardOverride ?? undefined}
+                    socketRef={socketRef}
+                  />
+                </div>
+
+                {vp.ultraWide && (
+                  <aside className="hidden 2xl:flex w-64 min-h-0">
+                    <div className="w-full h-full bg-black/30 border border-gray-700 rounded-lg p-3 text-gray-100 overflow-auto">
+                      <div className="text-sm font-semibold mb-2">{t('History','History')}</div>
+                      <ol className="text-xs space-y-1">
+                        {state.history.slice(-30).map((mv:any, idx:number) => (
+                          <li key={`mv-${idx}`} className="flex items-center gap-2">
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${mv.player==='black'?'bg-black border border-white':'bg-white border border-black'}`}></span>
+                            <span className="opacity-80">{mv.player}</span>
+                            <span className="opacity-60">({mv.row},{mv.col})</span>
+                          </li>
+                        ))}
+                        {state.history.length===0 && <li className="opacity-60">{t('NoMoves','No moves yet')}</li>}
+                      </ol>
+                    </div>
+                  </aside>
+                )}
+
+              </div>
 
               {/* Swap2: Option3 placement banner */}
               {state.winner && (

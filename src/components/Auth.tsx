@@ -4,13 +4,14 @@ import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/lib/supabaseClient';
 import toast from 'react-hot-toast';
+import { toastOnce } from '@/lib/toastOnce';
 
 const AuthComponent = () => {
 
   const handleGuestLogin = async () => {
     const { error } = await supabase.auth.signInAnonymously();
     if (error) {
-      toast.error('Could not log in as guest. Please try again.');
+      toastOnce('guest_login_failed', () => toast.error('Could not log in as guest. Please try again.'));
       console.error('Error signing in anonymously:', error);
     }
   };

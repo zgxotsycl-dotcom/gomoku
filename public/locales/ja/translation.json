@@ -114,5 +114,4 @@
   "Refresh": "再読み込み",
   "SearchNickname": "ニックネーム検索",
   "PvaLoadingTitle": "AI対戦の準備中...",
-  "PvaLoadingSubtitle": "背景を先読みしています"
-}
+  "PvaLoadingSubtitle": "宇宙背景をプリロード中",\n  "swap2.option3.placeWhite": "白石を置く位置をクリックしてください。",\n  "swap2.option3.placeBlack": "黒石を置く位置をクリックしてください。",\n  "swap2.option3.chooseTitle": "色を選択",\n  "swap2.option3.chooseDesc": "2手の配置が完了しました。色を選んでください。",\n  "swap2.option3.pickWhite": "私は白",\n  "swap2.option3.pickBlack": "私は黒",\n  "swap2.guide.title": "Swap2 オープニング進行中",\n  "swap2.guide.option3": "2手配置",\n  "swap2.guide.left": "残り手",\n  "swap2.guide.choose": "Swap2: 色を選択",\n  "swap2.guide.chooseDetail": "黒/白を選ぶ、またはオプション3(2手)",\n  "swap2.guide.preparing": "Swap2: 第2の選択を準備中",\n  "swap2.guide.loading": "読み込み中…",\n  "swap2.guide.swapDecision": "Swap2: 維持/交換の選択",\n  "swap2.guide.swapDetail": "白を維持・黒へ交換・オプション3",\n  "History": "履歴",\n  "Turn": "手番",\n  "Ready": "準備完了",\n  "NoMoves": "まだ手がありません"\n}\n

@@ -19,7 +19,26 @@ interface GameAreaProps {
     socketRef?: React.MutableRefObject<Socket | null>;
 }
 
+import { useEffect, useRef, useState } from 'react';
+
 const GameArea = ({ state, dispatch, replayGame, swap2Override, socketRef }: GameAreaProps) => {
+    const fitRef = useRef<HTMLDivElement | null>(null);
+    const [boardSize, setBoardSize] = useState<number>(0);
+    useEffect(() => {
+        const el = fitRef.current;
+        if (!el) return;
+        const compute = () => {
+            const rect = el.getBoundingClientRect();
+            const size = Math.floor(Math.max(0, Math.min(rect.width, rect.height)));
+            setBoardSize(size);
+        };
+        compute();
+        const ro = new ResizeObserver(() => compute());
+        ro.observe(el);
+        const onResize = () => compute();
+        window.addEventListener('resize', onResize);
+        return () => { try { ro.disconnect(); } catch {} window.removeEventListener('resize', onResize); };
+    }, []);
     const handleBoardClick = (event: React.MouseEvent<HTMLDivElement>) => {
         const rect = event.currentTarget.getBoundingClientRect();
         const style = window.getComputedStyle(event.currentTarget);
@@ -71,7 +90,8 @@ const GameArea = ({ state, dispatch, replayGame, swap2Override, socketRef }: Gam
     const winningLine = state.isWhatIfMode ? state.whatIfWinningLine : state.winningLine;
 
     return (
-        <>
+        <div className="w-full flex flex-col items-center flex-1 min-h-0">
+            <div ref={fitRef} className="w-full flex-1 min-h-0 flex items-center justify-center px-2">
             <GameBoard
                 board={boardForRender}
                 lastMove={getLastMove()}
@@ -86,17 +106,20 @@ const GameArea = ({ state, dispatch, replayGame, swap2Override, socketRef }: Gam
                 forbiddenMoves={state.forbiddenMoves}
                 isWinningShake={state.isWinningShake}
                 startAnimKey={state.startAnimKey}
+                boardSizePx={boardSize} winner={state.winner}
             />
 
-            <div className="mt-4 flex flex-col items-center gap-2">
+            </div>
+            <div className="mt-2 md:mt-4 flex flex-col items-center gap-2">
             <GameControls
                 state={state}
                 dispatch={dispatch}
                 replayGame={replayGame}
             />
             </div>
-        </>
+        </div>
     );
 };
 
 export default GameArea;
+

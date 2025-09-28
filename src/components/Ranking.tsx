@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { Profile } from '../types';
 import PatronBadge from './PatronBadge';
 import toast from 'react-hot-toast';
+import { toastOnce } from '@/lib/toastOnce';
 import { FaExternalLinkAlt, FaCopy, FaEye } from 'react-icons/fa';
 // PageCurl is applied by parent pages when needed
 
@@ -94,14 +95,14 @@ const Ranking = forwardRef<HTMLDivElement, {}>((_props, ref) => {
   // Quick spectate helpers
   const spectateFirstActive = () => {
     const target = filtered.find(p => activeGames.has(p.id));
-    if (!target) { toast(t('NoActiveMatch', 'No active match to spectate now')); return; }
+    if (!target) { toastOnce('no_active_match', () => toast(t('NoActiveMatch', 'No active match to spectate now'))); return; }
     const roomId = activeGames.get(target.id);
     if (roomId) window.location.href = `/spectate?roomId=${roomId}`;
   };
 
   const spectateRandomActive = () => {
     const actives = filtered.filter(p => activeGames.has(p.id));
-    if (actives.length === 0) { toast(t('NoActiveMatch', 'No active match to spectate now')); return; }
+    if (actives.length === 0) { toastOnce('no_active_match', () => toast(t('NoActiveMatch', 'No active match to spectate now'))); return; }
     const pick = actives[Math.floor(Math.random() * actives.length)];
     const roomId = activeGames.get(pick.id);
     if (roomId) window.location.href = `/spectate?roomId=${roomId}`;

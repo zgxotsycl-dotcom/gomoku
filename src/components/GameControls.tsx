@@ -24,7 +24,7 @@ export const GameControls = ({
     }
 
     return (
-        <div className="mt-4 flex flex-col items-center gap-2">
+        <div className="mt-0 flex flex-col items-center gap-2 text-sm md:text-base">
             {state.gameState === 'replay' && !state.isWhatIfMode && (
                 <ReplayControls
                     moveCount={state.history.length}
@@ -35,7 +35,7 @@ export const GameControls = ({
                     onWhatIf={replayGame?.game_type === 'pva' ? enterWhatIfMode : undefined}
                 />
             )}
-            {state.isWhatIfMode && <button onClick={exitWhatIfMode} disabled={state.isAiThinking} className="mt-2 px-4 py-2 bg-red-500 text-white rounded disabled:bg-gray-500">{state.isAiThinking ? t('Thinking') : t('ExitWhatIf')}</button>}
+            {state.isWhatIfMode && <button onClick={exitWhatIfMode} disabled={state.isAiThinking} className="mt-2 px-3 md:px-4 py-1.5 md:py-2 bg-red-500 text-white rounded disabled:bg-gray-500 text-sm md:text-base">{state.isAiThinking ? t('Thinking') : t('ExitWhatIf')}</button>}
         </div>
     );
 };

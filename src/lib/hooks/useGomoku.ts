@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { findForbiddenMoves } from '../gomokuRules';
 import io, { Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
+import { toastOnce } from '@/lib/toastOnce';
 import { supabase } from '../supabaseClient';
 import openingBook from '../opening_book.json';
 
@@ -238,7 +239,7 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
 
             if (state.board[row][col] || state.winner || state.gameState !== 'playing') return state;
             if (player === 'black' && state.forbiddenMoves.some(m => m.row === row && m.col === col)) {
-                toast.error('This move is forbidden (3-3 or 4-4).');
+                toastOnce('forbidden_move', () => toast.error('This move is forbidden (3-3 or 4-4).'));
                 return state;
             }
 
@@ -514,7 +515,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                     .single();
 
                 if (gameError || !gameData) {
-                    toast.error('Failed to save game for replay.');
+                    toastOnce('save_game_failed', () => toast.error('Failed to save game for replay.'));
                     console.error('Error saving game:', gameError);
                     return;
                 }
@@ -529,10 +530,10 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                     });
 
                 if (replayError) {
-                    toast.error('Failed to associate replay with user.');
+                    toastOnce('associate_replay_failed', () => toast.error('Failed to associate replay with user.'));
                     console.error('Error saving user_replay:', replayError);
                 } else {
-                    toast.success('Game saved to your replays!');
+                    toastOnce('save_game_success', () => toast.success('Game saved to your replays!'));
                 }
             }
         };
@@ -743,7 +744,7 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
                     }
                 } catch (e) {
                     console.error('Fallback AI move failed:', e);
-                    toast.error('AI move timed out.');
+                    toastOnce('ai_move_timeout', () => toast.error('AI move timed out.'));
                     dispatch({ type: 'SET_AI_THINKING', payload: false });
                 }
             }
