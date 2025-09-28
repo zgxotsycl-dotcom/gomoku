@@ -703,6 +703,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (!isPVA) return;
     if (state.difficulty !== 'normal') return;
     if (!isOpeningWaiting) return;
+    if (loadingOverlayActive) return;
     if (swap2SecondReady) return;
 
     let active = true;
@@ -728,6 +729,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     isPVA,
     state.difficulty,
     isOpeningWaiting,
+    loadingOverlayActive,
     swap2SecondReady,
     ensureSwap2Proposal,
     ensureSwap2SecondDecision,

@@ -488,7 +488,7 @@ export default function Home() {
     if (!loading) return;
     const id = window.setInterval(() => {
       setLoadingProgress((p) => (p >= 99 ? (window.clearInterval(id), 99) : p + 1));
-    }, 20);
+    }, 100);
     return () => window.clearInterval(id);
   }, [loading]);
 
@@ -518,6 +518,8 @@ export default function Home() {
 
   // PVA 배경 사전 로딩을 전역 iframe으로 유지(React 언마운트에 영향받지 않도록)
   useEffect(() => {
+    // Disable heavy hidden iframe preload to prevent browser lock-ups
+    return;
     if (!pvaLoading) return;
     try {
       const id = 'pva-preload-iframe';
