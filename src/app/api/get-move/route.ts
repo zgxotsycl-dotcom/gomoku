@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || '';
+// Support multiple env names so Vercel/Client configs work: SWAP2_SERVER_URL > NEXT_PUBLIC_AI_BASE_URL > NEXT_PUBLIC_API_BASE
+const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 const AI_TIMEOUT_MS = Number(process.env.SWAP2_SERVER_TIMEOUT_MS || 3000);
 
 function computeFallbackMove(board: any[][] | null | undefined, player: 'black' | 'white') {
@@ -64,6 +65,15 @@ async function fetchAi(url: string, body: unknown) {
   }
 }
 
+async function fetchAiWithRetry(url: string, body: unknown, tries = 2, backoffMs = 150) {
+  for (let i = 0; i < tries; i++) {
+    const res = await fetchAi(url, body);
+    if (res) return res;
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, backoffMs));
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const rawBoard = (body as any)?.board;
@@ -71,12 +81,16 @@ export async function POST(request: Request) {
   const player = ((body as any)?.player === 'black' || (body as any)?.player === 'white') ? (body as any).player : 'black';
 
   const remoteUrl = AI_BASE_URL ? `${AI_BASE_URL.replace(/\/$/, '')}/get-move` : '';
-  const remote = await fetchAi(remoteUrl, body);
+  const remote = await fetchAiWithRetry(remoteUrl, body, 2, 150);
   if (remote && Array.isArray(remote?.move) && Number.isInteger(remote.move[0]) && Number.isInteger(remote.move[1])) {
-    return NextResponse.json(remote);
+    const res = NextResponse.json(remote);
+    res.headers.set('x-ai-source', 'remote');
+    return res;
   }
 
   // Fallback move to guarantee progress
   const [r, c] = computeFallbackMove(board, player);
-  return NextResponse.json({ move: [r, c], source: 'fallback' });
+  const res = NextResponse.json({ move: [r, c], source: 'fallback' });
+  res.headers.set('x-ai-source', 'fallback');
+  return res;
 }

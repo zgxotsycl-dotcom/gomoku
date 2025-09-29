@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || '';
+const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 const AI_TIMEOUT_MS = Number(process.env.SWAP2_SERVER_TIMEOUT_MS || 2000);
 
 async function fetchAi(url: string, body: unknown) {
@@ -34,17 +34,32 @@ async function fetchAi(url: string, body: unknown) {
   }
 }
 
+async function fetchAiWithRetry(url: string, body: unknown, tries = 2, backoffMs = 150) {
+  for (let i = 0; i < tries; i++) {
+    const res = await fetchAi(url, body);
+    if (res) return res;
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, backoffMs));
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const aiServerUrl = AI_BASE_URL ? `${AI_BASE_URL.replace(/\/$/, '')}/swap2/second` : '';
-    const remote = await fetchAi(aiServerUrl, body);
+    const remote = await fetchAiWithRetry(aiServerUrl, body, 2, 150);
     if (remote) {
-      return NextResponse.json(remote);
+      const res = NextResponse.json(remote);
+      res.headers.set('x-ai-source', 'remote');
+      return res;
     }
-    return NextResponse.json({ swapColors: false, toMove: 'white', board: body?.board ?? null });
+    const fb = NextResponse.json({ swapColors: false, toMove: 'white', board: body?.board ?? null });
+    fb.headers.set('x-ai-source', 'fallback');
+    return fb;
   } catch (error) {
     console.error('Swap2 second proxy failed:', error);
-    return NextResponse.json({ swapColors: false, toMove: 'white', board: null });
+    const fb = NextResponse.json({ swapColors: false, toMove: 'white', board: null });
+    fb.headers.set('x-ai-source', 'fallback');
+    return fb;
   }
 }

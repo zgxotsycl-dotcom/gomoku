@@ -812,7 +812,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   /* ========== 자동 ColorSelect 오픈 (초기 대기 시) ========== */
   useEffect(() => {
     if (!isPVA) return;
-    if (state.difficulty !== 'normal') return;
+    if (state.difficulty === 'easy') return;
     if (!isOpeningWaiting) return;
     if (loadingOverlayActive) return;
     if (!swap2SecondReady) return;
@@ -823,7 +823,6 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
     if (!randomStart) dispatch({ type: 'SHOW_COLOR_SELECT' });
   }, [
     isPVA,
-    state.difficulty,
     isOpeningWaiting,
     loadingOverlayActive,
     swap2SecondReady,
@@ -895,7 +894,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
       <ColorSelect
         visible={
           isPVA &&
-          state.difficulty === 'normal' &&
+          state.difficulty !== 'easy' &&
           state.showColorSelect &&
           isOpeningWaiting &&
           !loadingOverlayActive &&
@@ -917,7 +916,7 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
 
       {/* Swap2: Option3 placement banner */}
       <Swap2OptionsModal
-        visible={!!swap2Decision && !swap2Option3State && !swap2Processing}
+        visible={state.difficulty !== 'easy' && !!swap2Decision && !swap2Option3State && !swap2Processing}
         loading={swap2Processing}
         onStayWhite={handleSwap2StayWhite}
         onSwapToBlack={handleSwap2SwapToBlack}

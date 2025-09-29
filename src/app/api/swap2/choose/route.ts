@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || '';
+const AI_BASE_URL = process.env.SWAP2_SERVER_URL || process.env.NEXT_PUBLIC_AI_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 const AI_TIMEOUT_MS = Number(process.env.SWAP2_SERVER_TIMEOUT_MS || 2000);
 
 async function fetchAi(url: string, body: unknown) {
@@ -34,6 +34,15 @@ async function fetchAi(url: string, body: unknown) {
   }
 }
 
+async function fetchAiWithRetry(url: string, body: unknown, tries = 2, backoffMs = 150) {
+  for (let i = 0; i < tries; i++) {
+    const res = await fetchAi(url, body);
+    if (res) return res;
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, backoffMs));
+  }
+  return null;
+}
+
 function computeFallbackColor(board: any[][] | null): 'black' | 'white' {
   if (!Array.isArray(board)) return 'black';
   let black = 0;
@@ -53,13 +62,17 @@ export async function POST(request: Request) {
 
   try {
     const aiServerUrl = AI_BASE_URL ? `${AI_BASE_URL.replace(/\/$/, '')}/swap2/choose` : '';
-    const remote = await fetchAi(aiServerUrl, { board });
+    const remote = await fetchAiWithRetry(aiServerUrl, { board }, 2, 150);
     if (remote) {
-      return NextResponse.json(remote);
+      const res = NextResponse.json(remote);
+      res.headers.set('x-ai-source', 'remote');
+      return res;
     }
   } catch (error) {
     console.error('Swap2 choose proxy failed:', error);
   }
 
-  return NextResponse.json({ aiColor: computeFallbackColor(board) });
+  const fb = NextResponse.json({ aiColor: computeFallbackColor(board) });
+  fb.headers.set('x-ai-source', 'fallback');
+  return fb;
 }
