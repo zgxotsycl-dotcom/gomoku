@@ -118,7 +118,7 @@ export default function Home() {
         <Auth />
       </div>
     ) : (
-      <main className="flex flex-col items-center justify-center p-10 pt-20">
+      <main className="flex flex-col items-center justify-center p-10 pt-20 overflow-auto no-scrollbar safe-bottom">
         {!selectedGameMode && <AccountInfo onOpenSettings={() => setSettingsOpen(true)} onOpenBenefits={handleBecomeSupporter} />}
         <h1 className="text-5xl font-extrabold text-white mb-8 text-center shadow-lg [text-shadow:_2px_2px_8px_rgb(0_0_0_/_50%)]">
           {t('GomokuGame')}

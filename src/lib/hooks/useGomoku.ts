@@ -86,6 +86,7 @@ const initialState = {
     whatIfWinner: null as Player | null,
     whatIfWinningLine: null as {row: number, col: number}[] | null,
     whatIfLastMove: null as Move | null,
+    aiPlayerBeforeWhatIf: null as Player | null,
     isWinningShake: false, // ADDED
     showColorSelect: false as boolean,
     pendingOpening: 'none' as 'none' | 'white_extra2' | 'white_extra1',
@@ -398,7 +399,9 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 isWhatIfMode: true,
                 whatIfBoard: replayBoard,
                 whatIfPlayer: nextPlayer,
-                aiPlayer: nextPlayer,
+                // In What-If, let the user play the side to move; AI plays the opponent
+                aiPlayerBeforeWhatIf: state.aiPlayer,
+                aiPlayer: nextPlayer === 'black' ? 'white' : 'black',
                 whatIfWinner: null,
                 whatIfWinningLine: null,
                 whatIfLastMove: null,
@@ -412,6 +415,9 @@ function gomokuReducer(state: typeof initialState, action: Action): typeof initi
                 whatIfWinner: null, 
                 whatIfWinningLine: null,
                 whatIfLastMove: null,
+                isAiThinking: false,
+                aiPlayer: state.aiPlayerBeforeWhatIf ?? state.aiPlayer,
+                aiPlayerBeforeWhatIf: null,
             };
         case 'PLACE_WHAT_IF_STONE': {
             if (!state.whatIfBoard || state.isAiThinking || state.whatIfWinner) return state;
@@ -488,6 +494,32 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
     const aiWorkerRef = useRef<Worker | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Initialize AI worker (used for What-If AI replies)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        if (aiWorkerRef.current) return;
+        try {
+            aiWorkerRef.current = new Worker('/ai.worker.js');
+            aiWorkerRef.current.onmessage = (e: MessageEvent<any>) => {
+                const data = e?.data || {};
+                const row = data?.row;
+                const col = data?.col;
+                // Stop the thinking spinner regardless of result
+                dispatch({ type: 'SET_AI_THINKING', payload: false });
+                // Apply AI move to What-If board if valid; reducer guards on mode/board presence
+                if (Number.isInteger(row) && Number.isInteger(col) && row >= 0 && col >= 0) {
+                    dispatch({ type: 'PLACE_WHAT_IF_STONE', payload: { row, col } });
+                }
+            };
+        } catch (err) {
+            console.error('Failed to initialize AI worker for What-If:', err);
+        }
+        return () => {
+            try { aiWorkerRef.current?.terminate(); } catch {}
+            aiWorkerRef.current = null;
+        };
+    }, [dispatch]);
 
     // Load replay game data when prop changes
     useEffect(() => {

@@ -86,7 +86,7 @@ const ReplaysPage = () => {
   }
 
   return (
-    <div className="min-h-[100svh] bg-gray-800 text-white p-4 sm:p-8">
+    <div className="min-h-[100svh] bg-gray-800 text-white p-4 sm:p-8 overflow-auto no-scrollbar safe-bottom">
       <div className="max-w-4xl mx-auto">
         <div className="relative">
             <div className="absolute top-0 left-0">

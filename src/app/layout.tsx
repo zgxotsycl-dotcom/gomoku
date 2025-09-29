@@ -13,4 +13,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+useEffect(() => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw-rocket.js").catch(() => {});
+  }
+}, []);
+
 

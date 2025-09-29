@@ -64,7 +64,8 @@ const GameArea = ({ state, dispatch, replayGame, swap2Override, socketRef }: Gam
             return;
         }
 
-        if ((state.difficulty === 'normal' && state.showColorSelect) || state.gameState !== 'playing') return;
+        // Allow What-If moves even when not in 'playing' state (e.g., during replay)
+        if ((state.difficulty === 'normal' && state.showColorSelect) || (!state.isWhatIfMode && state.gameState !== 'playing')) return;
 
         // Online multiplayer (PVO): never place stones locally
         if (state.gameMode === 'pvo') {

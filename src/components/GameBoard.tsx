@@ -148,17 +148,32 @@ export const GameBoard = ({
                                     // Opposite color glow for visibility on the board background
                                     const glow = cell === 'black' ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.70)';
                                     (stoneStyle as any)['--stone-glow-color'] = glow;
+                                    // Slight per-position variation for a more natural drop
+                                    const seed = ((r_idx * 31 + c_idx * 17) % 5) - 2; // -2..2
+                                    (stoneStyle as any)['--drop-rot'] = `${seed * 1.2}deg`;
+                                    (stoneStyle as any)['--drop-x'] = `${seed * 0.6}px`;
                                 }
                                 return (
                                   <React.Fragment key={`stone-${r_idx}-${c_idx}`}>
                                     <div key={`s-${r_idx}-${c_idx}`} className={stoneClasses} style={stoneStyle} />
                                     {isLast && !isWinStone && (
-                                      <div key={`r-${r_idx}-${c_idx}`} className="stone-ripple" style={{
-                                        top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
-                                        left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
-                                        width: stoneSize,
-                                        height: stoneSize,
-                                      }} />
+                                      <>
+                                        <div key={`r1-${r_idx}-${c_idx}`} className="stone-ripple" style={{
+                                          top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                          left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                          width: stoneSize,
+                                          height: stoneSize,
+                                          // ring color: opposite of stone for contrast
+                                          ['--ring-color' as any]: cell === 'black' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.35)'
+                                        }} />
+                                        <div key={`r2-${r_idx}-${c_idx}`} className="stone-ripple--inner" style={{
+                                          top: `calc(${(r_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                          left: `calc(${(c_idx / (BOARD_SIZE - 1)) * 100}% - (${stoneSize} / 2))`,
+                                          width: stoneSize,
+                                          height: stoneSize,
+                                          ['--ring-color' as any]: cell === 'black' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.28)'
+                                        }} />
+                                      </>
                                     )}
                                   </React.Fragment>
                                 );

@@ -9,6 +9,17 @@ html, body {
 }
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Allow touch-scroll without visible scrollbars for inner containers */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;    /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+/* Safe-area padding helpers */
+.safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
+.safe-top { padding-top: calc(env(safe-area-inset-top, 0px) + 12px); }
+
 /* Winning Shake Animation */
 @keyframes board-shake {
   0%, 100% {
@@ -359,10 +370,34 @@ html, body {
 .animate-scale-in { animation-duration: 600ms; animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1) }
 
 /* New stone animations */
-@keyframes stone-drop { 0% { transform: translateY(-14px) scale(0.4) rotate(-8deg); filter: drop-shadow(0 0 0 rgba(0,0,0,0)) } 55% { transform: translateY(2px) scale(1.05) rotate(2deg); filter: drop-shadow(0 6px 8px rgba(0,0,0,0.4)) } 75% { transform: translateY(-1px) scale(0.98) rotate(-1deg) } 100% { transform: translateY(0) scale(1) rotate(0deg); filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35)) } }
-.stone-pop { animation: stone-drop 320ms cubic-bezier(.21,.98,.6,.99); transform-origin: 50% 50% }
-@keyframes ring-ripple { 0% { transform: scale(0.2); opacity: .35 } 70% { opacity: .12 } 100% { transform: scale(1.25); opacity: 0 } }
-.stone-ripple { position:absolute; border:2px solid rgba(255,255,255,0.5); border-radius:9999px; pointer-events:none; animation: ring-ripple 600ms ease-out forwards; mix-blend-mode:screen }
+/* Improved physically-inspired stone drop */
+@keyframes stone-drop-phys {
+  0% {
+    transform: translate(var(--drop-x, 0px), -14px) scale(0.9) rotate(var(--drop-rot, -3deg));
+    filter: drop-shadow(0 0 0 rgba(0,0,0,0));
+    opacity: 0;
+  }
+  70% {
+    transform: translate(var(--drop-x, 0px), -2px) scale(1) rotate(calc(var(--drop-rot, -3deg) * 0.15));
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));
+    opacity: 1;
+  }
+}
+.stone-pop { animation: stone-drop-phys 300ms ease-out; transform-origin: 50% 50%; will-change: transform, filter }
+@keyframes ring-ripple { 0% { transform: scale(0.2); opacity: .4 } 65% { opacity: .16 } 100% { transform: scale(1.35); opacity: 0 } }
+@keyframes ring-ripple-inner { 0% { transform: scale(0.1); opacity: .5 } 60% { opacity: .2 } 100% { transform: scale(0.9); opacity: 0 } }
+.stone-ripple { position:absolute; border:2px solid var(--ring-color, rgba(255,255,255,0.5)); border-radius:9999px; pointer-events:none; animation: ring-ripple 640ms cubic-bezier(.17,.84,.44,1) forwards; mix-blend-mode:screen; will-change: transform, opacity }
+.stone-ripple--inner { position:absolute; border:1px solid var(--ring-color, rgba(255,255,255,0.45)); border-radius:9999px; pointer-events:none; animation: ring-ripple-inner 520ms ease-out forwards; mix-blend-mode:screen; will-change: transform, opacity }
+
+@media (prefers-reduced-motion: reduce) {
+  .stone-pop { animation: none; }
+  .stone-ripple, .stone-ripple--inner { animation: none; opacity: 0; }
+}
 
 /* Mobile and reduced-motion optimizations */
 @media (prefers-reduced-motion: reduce) {

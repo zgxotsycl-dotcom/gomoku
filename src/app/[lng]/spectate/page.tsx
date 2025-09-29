@@ -16,7 +16,7 @@ const SpectateGame = () => {
 
   if (!roomId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[100svh] bg-gray-800 text-white">
+      <div className="flex flex-col items-center justify-center min-h-[100svh] bg-gray-800 text-white overflow-auto no-scrollbar safe-bottom">
         <h2 className="text-2xl mb-4">No game room specified.</h2>
         <Link href="/" className="px-4 py-2 bg-blue-500 rounded hover:bg-blue-600">Go to Homepage</Link>
       </div>

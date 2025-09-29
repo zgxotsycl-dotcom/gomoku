@@ -108,7 +108,7 @@ export default function Home() {
 
   const showLogin = !session;
   return (
-  <div className={`relative min-h-[100svh] ${selectedGameMode === 'pva' ? '' : 'main-background'}`}>
+      <div className={`relative min-h-[100svh] ${selectedGameMode === 'pva' ? '' : 'main-background'} overflow-auto no-scrollbar safe-bottom`}>
     {showLogin ? (
       <div className="flex items-center justify-center min-h-[100svh]">
         <Auth />

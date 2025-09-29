@@ -257,8 +257,9 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
   }, [inSwap2Phase, swap2Option3State, state.showColorSelect, swap2SecondReady, swap2Decision, t]);
 
   // Responsive sizes for timer/guide based on viewport scale
-  const timerHeightCls = vp.size === 'xs' ? 'h-12' : vp.size === 'sm' ? 'h-14' : vp.size === 'md' ? 'h-16' : 'h-20';
-  const timerTextCls = vp.size === 'xs' ? 'text-2xl' : vp.size === 'sm' ? 'text-3xl' : vp.size === 'md' ? 'text-4xl' : 'text-5xl';
+  // Make timer more compact across breakpoints
+  const timerHeightCls = vp.size === 'xs' ? 'h-10' : vp.size === 'sm' ? 'h-12' : vp.size === 'md' ? 'h-14' : 'h-16';
+  const timerTextCls = vp.size === 'xs' ? 'text-xl' : vp.size === 'sm' ? 'text-2xl' : vp.size === 'md' ? 'text-3xl' : 'text-4xl';
   const guideTextCls = vp.size === 'xs' ? 'text-[10px]' : vp.size === 'sm' ? 'text-xs' : vp.size === 'md' ? 'text-sm' : 'text-base';
   const tinyLayout = (vp.size === 'xs' || vp.size === 'sm') && vp.portrait;
 
@@ -1081,14 +1082,17 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
               <div className={`mb-1 md:mb-4 ${timerHeightCls} flex items-center justify-center ${tinyLayout ? 'scale-90' : ''}`}>
                 {(state.gameMode === 'pva' || state.gameMode === 'pvo') &&
                   state.gameState === 'playing' && (
-                    <div className="flex items-center gap-4 p-3 rounded-lg bg-black/30 backdrop-blur-sm shadow-lg">
+                    <div className="flex items-center gap-3 md:gap-4 p-2.5 md:p-3 rounded-lg bg-black/30 backdrop-blur-sm shadow-lg">
                       <div
                         className={`w-8 h-8 rounded-full border-2 border-white ${
                           state.currentPlayer === 'black' ? 'bg-black' : 'bg-white'
                         }`}
                         aria-label={state.currentPlayer === 'black' ? 'Black to play' : 'White to play'}
                       />
-                      <span className={`${timerTextCls} font-mono text-white w-28 text-center`}>
+                      <span
+                        className={`${timerTextCls} font-mono font-semibold text-white/95 tracking-tight px-2 py-0.5 rounded-md bg-black/20 border border-white/10 text-center min-w-[5.5rem] drop-shadow-[0_0_6px_rgba(0,0,0,0.5)]`}
+                        style={{ fontVariantNumeric: 'tabular-nums' as any }}
+                      >
                         {formatTime(state.turnTimeRemaining)}
                       </span>
                     </div>
