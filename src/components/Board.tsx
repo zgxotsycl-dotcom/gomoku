@@ -1012,7 +1012,8 @@ const Board = ({ initialGameMode, onExit, spectateRoomId = null, replayGame = nu
                 onClick={() => {
                   const board = option3ResultBoardRef.current; if (!board) return;
                   setOption3ChooseVisible(false);
-                  finalizeSwap2Opening(board, 'white', 'white');
+                  // Human picks Black -> AI is White, next to move should be Black
+                  finalizeSwap2Opening(board, 'white', 'black');
                 }}
               >{t('swap2.option3.pickBlack','나는 흑(Black)')}</button>
             </div>
