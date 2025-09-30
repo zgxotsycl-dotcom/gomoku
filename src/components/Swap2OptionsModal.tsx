@@ -17,7 +17,7 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm overlay-fade-in">
       <div className="animate-slime-in bg-gray-900 border border-gray-700 rounded-2xl p-6 shadow-2xl w-[720px] max-w-[96%] relative">
         <h3 className="text-center text-white text-2xl font-bold mb-3">{t('swap2.options.title', 'Swap2 옵션')}</h3>
         <p className="text-center text-gray-300 mb-6 text-sm">{t('swap2.options.subtitle', '아래에서 한 가지를 선택하세요.')}</p>
@@ -75,4 +75,3 @@ export function Swap2OptionsModal({ visible, loading = false, onStayWhite, onSwa
 }
 
 export default Swap2OptionsModal;
-

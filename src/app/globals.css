@@ -366,8 +366,23 @@ html, body {
 @keyframes page-curl-edge { 0% { opacity: 0 } 50% { opacity: .35 } 100% { opacity: .12 } }
 
 /* Smoother slime/scale animations */
-.animate-slime-in { animation-duration: 600ms; animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1) }
+/* Smooth modal pop-in (used for Swap2 options) */
+@keyframes modal-pop-in {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.96); }
+  60%  { opacity: 1; transform: translateY(0)     scale(1.02); }
+  100% { opacity: 1; transform: translateY(0)     scale(1.0); }
+}
+@keyframes modal-fade-in {
+  0%   { opacity: 0 }
+  100% { opacity: 1 }
+}
+.animate-slime-in { animation-name: modal-pop-in; animation-duration: 280ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); animation-fill-mode: both; will-change: transform, opacity }
+.overlay-fade-in  { animation-name: modal-fade-in; animation-duration: 200ms; animation-timing-function: ease-out; animation-fill-mode: both }
 .animate-scale-in { animation-duration: 600ms; animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1) }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slime-in, .overlay-fade-in { animation: none }
+}
 
 /* New stone animations */
 /* Improved physically-inspired stone drop */
