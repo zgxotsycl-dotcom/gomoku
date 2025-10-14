@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Board from '@/components/Board';
 import type { GameMode } from '@/types';
 import Auth from '@/components/Auth';
-import Leaderboard from '@/components/Leaderboard';
+import Ranking from '@/components/Ranking';
 import SettingsModal from '@/components/SettingsModal';
 import SupporterBenefitsModal from '@/components/SupporterBenefitsModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -149,7 +149,7 @@ btn-hover-scale">
                 </button>
               )}
             </div>
-            <Leaderboard />
+            <Ranking />
           </div>
         )}
 
