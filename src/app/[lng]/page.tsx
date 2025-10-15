@@ -136,7 +136,7 @@ export default function Home() {
 btn-hover-scale">
                 {t('PvsAI')}
               </button>
-              <button onClick={() => { user?.is_anonymous ? setShowLoginModal(true) : setSelectedGameMode('pvo') }} className="px-8 py-4 bg-purple-600 text-white font-bold
+              <button onClick={() => { setSelectedGameMode('pvo') }} className="px-8 py-4 bg-purple-600 text-white font-bold
 rounded-lg hover:bg-purple-700 transition-colors text-xl btn-hover-scale">
                 {t('PvsOnline')}
               </button>

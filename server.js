@@ -31,6 +31,7 @@ const publicMatchmakingQueue = [];
 const BASE_TURN_DURATION = 5000; // 5 seconds
 const INCREMENT = 1000; // 1 second
 const MAX_TURN_DURATION = 30000; // 30 seconds
+const MIN_MOVES_FOR_ELO = 10; // Require some moves before rating changes
 
 // --- Swap2 helper (server-side simple proposer) ---
 function createEmptyBoard(size) {
@@ -87,7 +88,7 @@ const startTurnTimer = (roomId) => {
       const players = Object.values(room.players);
       const black = players.find(p => p.role === 'black');
       const white = players.find(p => p.role === 'white');
-      if (black && white && !room.isPrivate) {
+      if (black && white && !room.isPrivate && !isLikelyGuestId(black.id) && !isLikelyGuestId(white.id)) {
         const getProfile = async (id) => {
           const { data } = await supabase.from('profiles').select('elo_rating').eq('id', id).single();
           return (data && data.elo_rating) || 1200;
@@ -137,6 +138,13 @@ const broadcastUserCounts = () => {
   io.emit('user-counts-update', { onlineUsers, inQueueUsers });
 };
 
+// Heuristic: treat non-UUID-looking IDs as guest/ephemeral IDs
+const isLikelyGuestId = (id) => {
+  if (!id || typeof id !== 'string') return true;
+  const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return !uuidV4.test(id);
+};
+
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
   broadcastUserCounts();
@@ -152,13 +160,33 @@ io.on('connection', (socket) => {
 
   // --- Public Matchmaking ---
   socket.on('join-public-queue', (userProfile) => {
-    if (publicMatchmakingQueue.some(p => p.profile.id === userProfile.id)) {
-      console.log(`User ${userProfile.username} (${userProfile.id}) is already in the queue.`);
+    // Build a safe profile for guests (fallbacks if missing)
+    const safeProfile = (() => {
+      try {
+        const id = userProfile?.id || `guest-${(socket.id || '').slice(0,6)}`;
+        const username = userProfile?.username || `Guest-${(id || '').slice(0,6)}`;
+        return {
+          id,
+          username,
+          elo_rating: Number.isFinite(userProfile?.elo_rating) ? userProfile.elo_rating : 1200,
+          is_supporter: !!userProfile?.is_supporter,
+          nickname_color: userProfile?.nickname_color ?? null,
+          badge_color: userProfile?.badge_color ?? null,
+          banner_color: userProfile?.banner_color ?? null,
+        };
+      } catch {
+        const id = `guest-${(socket.id || '').slice(0,6)}`;
+        return { id, username: `Guest-${id.slice(6)}`, elo_rating: 1200, is_supporter: false, nickname_color: null, badge_color: null, banner_color: null };
+      }
+    })();
+
+    if (publicMatchmakingQueue.some(p => p.profile.id === safeProfile.id)) {
+      console.log(`User ${safeProfile.username} (${safeProfile.id}) is already in the queue.`);
       return;
     }
 
-    console.log(`User ${userProfile.username} (${socket.userId}) joined the public queue.`);
-    publicMatchmakingQueue.push({ socketId: socket.id, profile: userProfile });
+    console.log(`User ${safeProfile.username} (${socket.userId || safeProfile.id}) joined the public queue.`);
+    publicMatchmakingQueue.push({ socketId: socket.id, profile: safeProfile });
     broadcastUserCounts();
 
     if (publicMatchmakingQueue.length >= 2) {
@@ -177,6 +205,7 @@ io.on('connection', (socket) => {
         turnTimer: null,
         turnEndsAt: null,
         turnLimit: BASE_TURN_DURATION, // Initialize turn limit
+        moveCount: 0,
         rematchVotes: new Set(),
         isPrivate: false,
       };
@@ -197,13 +226,18 @@ io.on('connection', (socket) => {
         console.log(`Public game starting for ${player1.profile.username} and ${player2.profile.username} in room ${roomId}`);
         startTurnTimer(roomId);
         
-        supabase.from('active_games').insert({
-          room_id: roomId,
-          player1_id: player1.profile.id,
-          player2_id: player2.profile.id
-        }).then(({ error }) => {
-          if (error) console.error('Error creating active game:', error);
-        });
+        // Only record in DB if both players look like registered users (likely UUIDs)
+        const p1Guest = isLikelyGuestId(player1.profile.id);
+        const p2Guest = isLikelyGuestId(player2.profile.id);
+        if (!p1Guest && !p2Guest) {
+          supabase.from('active_games').insert({
+            room_id: roomId,
+            player1_id: player1.profile.id,
+            player2_id: player2.profile.id
+          }).then(({ error }) => {
+            if (error) console.error('Error creating active game:', error);
+          });
+        }
       }
       broadcastUserCounts();
     }
@@ -271,6 +305,8 @@ io.on('connection', (socket) => {
 
     // Increment turn limit before starting next turn
     room.turnLimit = Math.min(MAX_TURN_DURATION, room.turnLimit + INCREMENT);
+    // Track total moves for ELO thresholds
+    room.moveCount = (room.moveCount || 0) + 1;
 
     const newPlayer = room.currentPlayer === 'black' ? 'white' : 'black';
     room.currentPlayer = newPlayer;
@@ -306,7 +342,7 @@ io.on('connection', (socket) => {
       const black = players.find(p => p.role === 'black');
       const white = players.find(p => p.role === 'white');
       const enoughMoves = (room.moveCount || 0) >= MIN_MOVES_FOR_ELO;
-      if (black && white && !room.isPrivate && black.id !== white.id && enoughMoves) {
+      if (black && white && !room.isPrivate && black.id !== white.id && enoughMoves && !isLikelyGuestId(black.id) && !isLikelyGuestId(white.id)) {
         const getProfile = async (id) => {
           const { data } = await supabase.from('profiles').select('elo_rating').eq('id', id).single();
           return (data && data.elo_rating) || 1200;

@@ -812,16 +812,55 @@ export const useGomoku = (initialGameMode: GameMode, onExit: () => void, spectat
         }
     }, [state.gameState]);
 
-    // User Profile Fetching
+    // User Profile Fetching (with guest fallback)
     useEffect(() => {
         const fetchUserProfile = async () => {
             if (!user) return;
-            const { data } = await supabase
-              .from('profiles')
-              .select('id, username, elo_rating, is_supporter, nickname_color, badge_color, banner_color')
-              .eq('id', user.id)
-              .single();
-            dispatch({ type: 'SET_USER_PROFILE', payload: data as any });
+            try {
+                const { data } = await supabase
+                  .from('profiles')
+                  .select('id, username, elo_rating, is_supporter, nickname_color, badge_color, banner_color')
+                  .eq('id', user.id)
+                  .single();
+
+                if (data) {
+                    dispatch({ type: 'SET_USER_PROFILE', payload: data as any });
+                    return;
+                }
+            } catch { /* ignore; fallback below */ }
+
+            // Fallback for anonymous/guest users without a stored profile row
+            try {
+                const storedNameKey = 'guest_username';
+                let guestName = '';
+                try { guestName = localStorage.getItem(storedNameKey) || '' } catch {}
+                if (!guestName) {
+                    const shortId = (user.id || '').slice(0, 6);
+                    guestName = shortId ? `Guest-${shortId}` : 'Guest';
+                    try { localStorage.setItem(storedNameKey, guestName) } catch {}
+                }
+                const guestProfile = {
+                    id: user.id,
+                    username: guestName,
+                    elo_rating: 1200,
+                    is_supporter: false,
+                    nickname_color: null,
+                    badge_color: null,
+                    banner_color: null,
+                } as Profile;
+                dispatch({ type: 'SET_USER_PROFILE', payload: guestProfile });
+            } catch {
+                // As a last resort set a minimal guest identity
+                dispatch({ type: 'SET_USER_PROFILE', payload: {
+                    id: user.id,
+                    username: 'Guest',
+                    elo_rating: 1200,
+                    is_supporter: false,
+                    nickname_color: null,
+                    badge_color: null,
+                    banner_color: null,
+                } as Profile });
+            }
         };
         fetchUserProfile();
     }, [user]);
